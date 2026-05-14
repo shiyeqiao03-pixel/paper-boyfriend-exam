@@ -1,2 +1,2 @@
-# paper-boyfriend-v2
-哄哄模拟器新版本
+# paper-boyfriend-eaxm
+纸片人男友模拟器新版本
