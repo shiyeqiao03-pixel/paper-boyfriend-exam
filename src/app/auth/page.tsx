@@ -12,10 +12,12 @@ export default function AuthPage() {
   const [isAdult, setIsAdult] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setSuccess("");
 
     if (!isLogin && !isAdult) {
       setError("请确认您已满 18 岁");
@@ -24,28 +26,45 @@ export default function AuthPage() {
 
     setLoading(true);
 
-    try {
-      if (isLogin) {
-        const { error } = await authClient.signIn.email({
-          email,
-          password,
-          callbackURL: "/onboarding",
-        });
-        if (error) throw new Error(error.message);
-      } else {
-        const { error } = await authClient.signUp.email({
-          email,
-          password,
-          name: email.split("@")[0],
-          callbackURL: "/onboarding",
-        });
-        if (error) throw new Error(error.message);
+    if (isLogin) {
+      const { error } = await authClient.signIn.email({
+        email,
+        password,
+        callbackURL: "/onboarding",
+      });
+      if (error) {
+        setError(error.message || "登录失败，请重试");
+        setLoading(false);
+        return;
       }
-    } catch (err: any) {
-      setError(err.message || "操作失败，请重试");
-    } finally {
-      setLoading(false);
+      window.location.href = "/onboarding";
+      return;
     }
+
+    await authClient.signUp.email(
+      {
+        email,
+        password,
+        name: email.split("@")[0],
+      },
+      {
+        onRequest: () => {
+          console.log("[注册] 请求发送中...");
+        },
+        onSuccess: (ctx) => {
+          console.log("[注册] 成功:", ctx);
+          setSuccess("注册成功！正在跳转……");
+          setTimeout(() => {
+            window.location.href = "/onboarding?welcome=true";
+          }, 500);
+        },
+        onError: (ctx) => {
+          console.error("[注册] 失败:", ctx.error);
+          setError(ctx.error.message || "注册失败，请重试");
+          setLoading(false);
+        },
+      }
+    );
   };
 
   const handleGoogleLogin = async () => {
@@ -69,6 +88,9 @@ export default function AuthPage() {
 
         {error && (
           <p className="mb-md text-center text-sm text-primary">{error}</p>
+        )}
+        {success && (
+          <p className="mb-md text-center text-sm text-green-600">{success}</p>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-md">
@@ -161,6 +183,7 @@ export default function AuthPage() {
             onClick={() => {
               setIsLogin(!isLogin);
               setError("");
+              setSuccess("");
             }}
             className="ml-1 text-primary hover:underline"
           >
