@@ -1,4 +1,13 @@
 import Link from "next/link";
+import Image from "next/image";
+
+// 头像文件名映射
+const avatarMap: Record<string, string> = {
+  "陆沉舟": "/avatars/luchenzhou.jpg",
+  "倪可": "/avatars/ni_ke.jpg",
+  "许知衡": "/avatars/xuzhiheng.jpg",
+  "周野": "/avatars/zhouye.jpg",
+};
 
 export default function HomePage() {
   return (
@@ -25,14 +34,23 @@ export default function HomePage() {
           </p>
         </div>
 
-        {/* 右侧角色卡片占位 */}
+        {/* 右侧角色卡片 */}
         <div className="flex flex-1 flex-wrap justify-center gap-md py-xl md:justify-end">
           {["陆沉舟", "倪可", "许知衡", "周野"].map((name) => (
             <div
               key={name}
               className="flex h-36 w-28 flex-col items-center justify-center rounded-lg bg-card shadow-card"
             >
-              <div className="mb-2 h-12 w-12 rounded-full bg-muted" />
+              <div className="mb-2 h-12 w-12 rounded-full overflow-hidden">
+                <Image
+                  src={avatarMap[name]}
+                  alt={name}
+                  width={48}
+                  height={48}
+                  className="w-full h-full object-cover"
+                  priority
+                />
+              </div>
               <span className="text-sm font-medium text-foreground">{name}</span>
             </div>
           ))}
