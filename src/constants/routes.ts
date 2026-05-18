@@ -1,0 +1,31 @@
+export const ROUTES = {
+  HOME: "/",
+  AUTH: "/auth",
+  ONBOARDING: "/onboarding",
+  CHARACTERS: "/characters",
+  CHAT: (characterId: string) => `/chat/${characterId}`,
+  CHAT_HISTORY: (characterId: string) => `/chat/${characterId}/history`,
+  CHARACTER_INTRO: (characterId: string) => `/characters/${characterId}/intro`,
+} as const;
+
+export const API_ROUTES = {
+  PROFILE: "/api/profile",
+  CHARACTERS: "/api/characters",
+  CHAT_SEND: "/api/chat/send",
+  CHAT_REGENERATE: "/api/chat/regenerate",
+  CHAT_MESSAGES: "/api/chat/messages",
+  CHAT_HISTORY_DATES: "/api/chat/history-dates",
+  CHAT_CLEAR: "/api/chat/clear",
+  CHAT_GENERATE_VOICE: "/api/chat/generate-voice",
+  CHAT_GENERATE_IMAGE: "/api/chat/generate-image",
+  CHAT_MESSAGE_STATUS: "/api/chat/message-status",
+  FILES_UPLOAD_IMAGE: "/api/files/upload-image",
+  FILES_UPLOAD_VOICE: "/api/files/upload-voice",
+  FILES_UNDERSTAND_IMAGE: "/api/files/understand-image",
+  FILES_TRANSCRIBE_VOICE: "/api/files/transcribe-voice",
+  FILES_SIGNED_URL: "/api/files/signed-url",
+  SHARE_CHAT_CARD: "/api/share/chat-card",
+  SHARE_IMAGE_CARD: "/api/share/image-card",
+  CRON_PROCESS_MEMORIES: "/api/cron/process-memories",
+  CRON_EMAIL_RECALL: "/api/cron/email-recall",
+} as const;
