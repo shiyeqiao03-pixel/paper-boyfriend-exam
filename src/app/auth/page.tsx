@@ -53,10 +53,10 @@ export default function AuthPage() {
         },
         onSuccess: (ctx) => {
           console.log("[注册] 成功:", ctx);
-          setSuccess("注册成功！正在跳转……");
+          setSuccess("🎉 注册成功！欢迎来到纸片人男友~");
           setTimeout(() => {
             window.location.href = "/onboarding?welcome=true";
-          }, 500);
+          }, 1500);
         },
         onError: (ctx) => {
           console.error("[注册] 失败:", ctx.error);

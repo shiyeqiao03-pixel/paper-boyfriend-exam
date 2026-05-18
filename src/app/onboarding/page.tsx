@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 export default function OnboardingPage() {
@@ -8,6 +8,17 @@ export default function OnboardingPage() {
   const [nickname, setNickname] = useState("");
   const [preferredName, setPreferredName] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const isWelcome = params.get("welcome") === "true";
+    if (isWelcome) {
+      setShowWelcome(true);
+      const timer = setTimeout(() => setShowWelcome(false), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,6 +37,12 @@ export default function OnboardingPage() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-background px-md">
       <div className="w-full max-w-sm">
+        {showWelcome && (
+          <div className="mb-md rounded-md bg-green-50 px-4 py-3 text-center text-sm text-green-700 transition-opacity">
+            🎉 注册成功！欢迎来到纸片人男友~
+          </div>
+        )}
+
         <h1 className="mb-md text-center text-2xl font-semibold text-foreground">
           先告诉他，该怎么称呼你？
         </h1>
