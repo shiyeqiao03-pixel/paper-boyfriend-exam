@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
+import { getAvatarUrl } from "@/lib/character-avatars";
 
 interface Character {
   id: string;
@@ -28,9 +30,21 @@ export default function CharactersPage() {
       });
   }, []);
 
-  const handleSelect = (characterId: string) => {
-    // TODO: 检查是否首次进入，首次进入跳 intro，否则跳 chat
-    router.push(`/characters/${characterId}/intro`);
+  const handleSelect = async (characterId: string) => {
+    try {
+      const res = await fetch(
+        `/api/characters/${characterId}/relationship`,
+        { method: "GET" }
+      );
+      const data = await res.json();
+      if (data.relationship?.introSeen) {
+        router.push(`/chat/${characterId}`);
+      } else {
+        router.push(`/characters/${characterId}/intro`);
+      }
+    } catch {
+      router.push(`/characters/${characterId}/intro`);
+    }
   };
 
   return (
@@ -50,7 +64,17 @@ export default function CharactersPage() {
                 className="flex flex-col rounded-lg bg-white p-6 shadow-card transition-all hover:-translate-y-0.5 hover:shadow-light"
               >
                 <div className="mb-4 flex items-center gap-4">
-                  <div className="h-16 w-16 flex-shrink-0 rounded-full bg-muted" />
+                  <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-full bg-muted">
+                    {getAvatarUrl(char.name) && (
+                      <Image
+                        src={getAvatarUrl(char.name)}
+                        alt={char.name}
+                        width={64}
+                        height={64}
+                        className="h-full w-full object-cover"
+                      />
+                    )}
+                  </div>
                   <div>
                     <h2 className="text-lg font-semibold text-foreground">
                       {char.name}

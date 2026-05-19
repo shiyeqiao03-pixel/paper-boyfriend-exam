@@ -46,32 +46,34 @@ export default function AuthPage() {
       return;
     }
 
-    if (!turnstileToken) {
-      setError("请完成人机验证");
+    if (siteKey && !turnstileToken) {
+      turnstileRef.current?.execute();
       setLoading(false);
       return;
     }
 
-    try {
-      const verifyRes = await fetch("/api/verify-turnstile", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: turnstileToken }),
-      });
+    if (siteKey && turnstileToken) {
+      try {
+        const verifyRes = await fetch("/api/verify-turnstile", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token: turnstileToken }),
+        });
 
-      const verifyData = await verifyRes.json();
+        const verifyData = await verifyRes.json();
 
-      if (!verifyData.success) {
-        setError(verifyData.message || "人机验证失败，请重试");
-        turnstileRef.current?.reset();
-        setTurnstileToken("");
+        if (!verifyData.success) {
+          setError(verifyData.message || "安全验证失败，请重试");
+          turnstileRef.current?.reset();
+          setTurnstileToken("");
+          setLoading(false);
+          return;
+        }
+      } catch {
+        setError("验证服务异常，请稍后重试");
         setLoading(false);
         return;
       }
-    } catch {
-      setError("验证服务异常，请稍后重试");
-      setLoading(false);
-      return;
     }
 
     await authClient.signUp.email(
@@ -187,9 +189,10 @@ export default function AuthPage() {
               <Turnstile
                 ref={turnstileRef}
                 siteKey={siteKey}
+                options={{ size: "invisible" }}
                 onSuccess={(token) => setTurnstileToken(token)}
                 onError={() => {
-                  setError("人机验证加载失败，请刷新页面重试");
+                  setError("安全验证加载失败，请刷新页面重试");
                   setTurnstileToken("");
                 }}
                 onExpire={() => setTurnstileToken("")}

@@ -11,7 +11,10 @@ function isProtectedRoute(pathname: string): boolean {
 }
 
 function hasSessionCookie(request: NextRequest): boolean {
-  return !!request.cookies.get("better-auth.session_token")?.value;
+  return (
+    !!request.cookies.get("better-auth.session_token")?.value ||
+    !!request.cookies.get("__Secure-better-auth.session_token")?.value
+  );
 }
 
 export async function middleware(request: NextRequest) {

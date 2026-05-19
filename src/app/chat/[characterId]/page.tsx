@@ -2,9 +2,11 @@
 
 import { useParams } from "next/navigation";
 import { useEffect, useRef, useState, useCallback } from "react";
-import { ArrowLeft, MoreHorizontal, Send } from "lucide-react";
+import { ArrowLeft, MoreHorizontal, Send, ImagePlus } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import { formatTime, shouldShowTimeDivider } from "@/lib/utils";
+import { getAvatarUrl } from "@/lib/character-avatars";
 
 interface ChatMessage {
   id: string;
@@ -30,6 +32,7 @@ export default function ChatPage() {
   const audioChunksRef = useRef<Blob[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -105,6 +108,73 @@ export default function ChatPage() {
     }
   };
 
+  const handleSendImage = async (file: File) => {
+    if (sending) return;
+
+    setSending(true);
+
+    try {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const dataUrl = e.target?.result as string;
+        if (!dataUrl) {
+          setSending(false);
+          return;
+        }
+
+        // 乐观更新
+        const tempUserMsg: ChatMessage = {
+          id: `temp-${Date.now()}`,
+          senderType: "user",
+          messageType: "image",
+          contentText: dataUrl,
+          status: "sent",
+          createdAt: new Date().toISOString(),
+          replyGroupId: null,
+        };
+        setMessages((prev) => [...prev, tempUserMsg]);
+        setTimeout(scrollToBottom, 50);
+
+        try {
+          const res = await fetch("/api/chat/send", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              characterId,
+              messageType: "image",
+              contentText: dataUrl,
+            }),
+          });
+
+          const data = await res.json();
+
+          if (data.messages) {
+            setMessages((prev) => {
+              const filtered = prev.filter((m) => m.id !== tempUserMsg.id);
+              return [...filtered, ...data.messages];
+            });
+            setTimeout(scrollToBottom, 100);
+          }
+        } catch (error) {
+          console.error("发送图片失败:", error);
+        } finally {
+          setSending(false);
+        }
+      };
+      reader.readAsDataURL(file);
+    } catch {
+      setSending(false);
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleSendImage(file);
+    }
+    e.target.value = "";
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -115,14 +185,12 @@ export default function ChatPage() {
   // 语音识别相关
   const toggleRecording = async () => {
     if (recording) {
-      // 停止录音
       mediaRecorderRef.current?.stop();
       setRecording(false);
       setProcessingVoice(true);
       return;
     }
 
-    // 开始录音
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
@@ -134,19 +202,14 @@ export default function ChatPage() {
       };
 
       mediaRecorder.onstop = async () => {
-        // 停止所有音轨
         stream.getTracks().forEach((track) => track.stop());
 
         try {
-          // 合并音频Blob
           const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-
-          // 转成16kHz/16bit单声道PCM
           const arrayBuffer = await audioBlob.arrayBuffer();
           const audioContext = new AudioContext({ sampleRate: 16000 });
           const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
 
-          // 重采样到16kHz单声道
           const resampledBuffer = audioContext.createBuffer(
             1,
             Math.floor(audioBuffer.length * (16000 / audioBuffer.sampleRate)),
@@ -161,7 +224,6 @@ export default function ChatPage() {
             resampledData[i] = channelData[idx];
           }
 
-          // 转成16bit PCM Buffer
           const pcmBuffer = new Int16Array(resampledData.length);
           for (let i = 0; i < resampledData.length; i++) {
             const s = Math.max(-1, Math.min(1, resampledData[i]));
@@ -169,7 +231,6 @@ export default function ChatPage() {
           }
           const pcmBlob = new Blob([pcmBuffer], { type: "audio/pcm" });
 
-          // 上传到后端STT接口
           const formData = new FormData();
           formData.append("audio", pcmBlob, "audio.pcm");
 
@@ -180,7 +241,6 @@ export default function ChatPage() {
 
           const data = await res.json();
           if (data.success && data.text) {
-            // 识别成功，自动填入输入框并发送
             setInputText(data.text);
             setTimeout(() => handleSend(), 100);
           } else {
@@ -244,23 +304,24 @@ export default function ChatPage() {
 
             {msg.status !== "generating" &&
               msg.status !== "failed" &&
-              msg.contentText && (
-                msg.messageType === "image" ? (
-                  <img
-                    src={msg.contentText}
-                    alt="图片"
-                    className="max-w-full rounded-lg"
-                    loading="lazy"
-                  />
-                ) : (
-                  <p className="text-base">{msg.contentText}</p>
-                )
-              )}
+              msg.contentText &&
+              (msg.messageType === "image" ? (
+                <img
+                  src={msg.contentText}
+                  alt="图片"
+                  className="max-w-full rounded-lg"
+                  loading="lazy"
+                />
+              ) : (
+                <p className="text-base">{msg.contentText}</p>
+              ))}
           </div>
         </div>
       </div>
     );
   };
+
+  const avatarUrl = getAvatarUrl(characterName);
 
   return (
     <main className="flex h-screen flex-col bg-background">
@@ -273,7 +334,17 @@ export default function ChatPage() {
           <ArrowLeft size={20} />
         </Link>
 
-        <div className="mr-3 h-9 w-9 flex-shrink-0 rounded-full bg-muted" />
+        <div className="mr-3 h-9 w-9 flex-shrink-0 overflow-hidden rounded-full bg-muted">
+          {avatarUrl && (
+            <Image
+              src={avatarUrl}
+              alt={characterName}
+              width={36}
+              height={36}
+              className="h-full w-full object-cover"
+            />
+          )}
+        </div>
 
         <span className="flex-1 text-base font-semibold text-foreground">
           {characterName || "加载中……"}
@@ -344,6 +415,21 @@ export default function ChatPage() {
               </svg>
             )}
           </button>
+
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={sending}
+            className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-foreground-secondary transition-colors hover:bg-background-secondary disabled:opacity-30"
+          >
+            <ImagePlus size={20} />
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={handleFileSelect}
+            className="hidden"
+          />
 
           <input
             ref={inputRef}
