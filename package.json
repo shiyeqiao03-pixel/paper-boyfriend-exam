@@ -14,8 +14,10 @@
     "db:seed": "tsx src/lib/db/seed.ts"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.709.0",
+    "@aws-sdk/client-s3": "^3.1049.0",
     "@aws-sdk/s3-request-presigner": "^3.709.0",
+    "@marsidev/react-turnstile": "^1.5.2",
+    "@react-email/components": "^1.0.12",
     "@types/uuid": "^10.0.0",
     "@types/ws": "^8.18.1",
     "better-auth": "^1.0.0",
@@ -30,7 +32,8 @@
     "postgres": "^3.4.5",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "resend": "^4.0.1",
+    "react-email": "^6.1.5",
+    "resend": "^4.8.0",
     "tailwind-merge": "^2.6.0",
     "undici": "^8.3.0",
     "utf-8-validate": "^6.0.6",

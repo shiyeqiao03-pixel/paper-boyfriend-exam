@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
+import { Turnstile, type TurnstileInstance } from "@marsidev/react-turnstile";
 
 export default function AuthPage() {
   const router = useRouter();
@@ -13,6 +14,10 @@ export default function AuthPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const turnstileRef = useRef<TurnstileInstance>(null);
+
+  const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,6 +46,34 @@ export default function AuthPage() {
       return;
     }
 
+    if (!turnstileToken) {
+      setError("请完成人机验证");
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const verifyRes = await fetch("/api/verify-turnstile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: turnstileToken }),
+      });
+
+      const verifyData = await verifyRes.json();
+
+      if (!verifyData.success) {
+        setError(verifyData.message || "人机验证失败，请重试");
+        turnstileRef.current?.reset();
+        setTurnstileToken("");
+        setLoading(false);
+        return;
+      }
+    } catch {
+      setError("验证服务异常，请稍后重试");
+      setLoading(false);
+      return;
+    }
+
     await authClient.signUp.email(
       {
         email,
@@ -61,6 +94,8 @@ export default function AuthPage() {
         onError: (ctx) => {
           console.error("[注册] 失败:", ctx.error);
           setError(ctx.error.message || "注册失败，请重试");
+          turnstileRef.current?.reset();
+          setTurnstileToken("");
           setLoading(false);
         },
       }
@@ -69,13 +104,23 @@ export default function AuthPage() {
 
   const handleGoogleLogin = async () => {
     try {
-      // Better Auth signIn.social 会自动处理跳转
       await authClient.signIn.social({
         provider: "google",
         callbackURL: "/onboarding",
       });
     } catch (err: any) {
       setError(err.message || "Google 登录失败，请重试");
+    }
+  };
+
+  const handleGithubLogin = async () => {
+    try {
+      await authClient.signIn.social({
+        provider: "github",
+        callbackURL: "/onboarding",
+      });
+    } catch (err: any) {
+      setError(err.message || "GitHub 登录失败，请重试");
     }
   };
 
@@ -137,6 +182,21 @@ export default function AuthPage() {
             </label>
           )}
 
+          {!isLogin && siteKey && (
+            <div className="flex justify-center">
+              <Turnstile
+                ref={turnstileRef}
+                siteKey={siteKey}
+                onSuccess={(token) => setTurnstileToken(token)}
+                onError={() => {
+                  setError("人机验证加载失败，请刷新页面重试");
+                  setTurnstileToken("");
+                }}
+                onExpire={() => setTurnstileToken("")}
+              />
+            </div>
+          )}
+
           <button
             type="submit"
             disabled={loading}
@@ -177,6 +237,16 @@ export default function AuthPage() {
           使用 Google 继续
         </button>
 
+        <button
+          onClick={handleGithubLogin}
+          className="mt-sm flex w-full items-center justify-center gap-sm rounded-button border border-input bg-white py-3 text-base font-medium text-foreground transition-all hover:bg-background-secondary"
+        >
+          <svg className="h-5 w-5" viewBox="0 0 24 24" fill="#181717">
+            <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" />
+          </svg>
+          使用 GitHub 继续
+        </button>
+
         <div className="mt-lg text-center text-sm text-foreground-muted">
           {isLogin ? "还没有账号？" : "已有账号？"}
           <button
@@ -184,6 +254,8 @@ export default function AuthPage() {
               setIsLogin(!isLogin);
               setError("");
               setSuccess("");
+              setTurnstileToken("");
+              turnstileRef.current?.reset();
             }}
             className="ml-1 text-primary hover:underline"
           >

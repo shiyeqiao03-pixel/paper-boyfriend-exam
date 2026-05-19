@@ -4,5 +4,11 @@
       "maxDuration": 60
     }
   },
-  "installCommand": "npm install"
+  "installCommand": "npm install",
+  "crons": [
+    {
+      "path": "/api/cron/daily-love-letter",
+      "schedule": "0 0 * * *"
+    }
+  ]
 }

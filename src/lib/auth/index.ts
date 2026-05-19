@@ -2,11 +2,18 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { db } from "@/lib/db";
 import { fetchWithProxy } from "@/lib/fetch-with-proxy";
+import { sendWelcomeEmail } from "@/lib/email";
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, { provider: "pg" }),
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL: process.env.BETTER_AUTH_URL,
+  trustedOrigins: [
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "https://paperboyfriend.xyz",
+    process.env.BETTER_AUTH_URL,
+  ].filter(Boolean) as string[],
   customFetch: fetchWithProxy,
   emailAndPassword: {
     enabled: true,
@@ -25,5 +32,20 @@ export const auth = betterAuth({
   session: {
     expiresIn: 60 * 60 * 24 * 7,
     updateAge: 60 * 60 * 24,
+  },
+  databaseHooks: {
+    user: {
+      create: {
+        after: async (user) => {
+          if (user.email && user.name) {
+            try {
+              await sendWelcomeEmail(user.email, user.name);
+            } catch (error) {
+              console.error("[databaseHook] 欢迎邮件发送失败:", error);
+            }
+          }
+        },
+      },
+    },
   },
 });

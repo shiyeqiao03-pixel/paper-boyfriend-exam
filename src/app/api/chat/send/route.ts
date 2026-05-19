@@ -10,6 +10,7 @@ import { callLLM, type LLMMessage } from "@/lib/providers/llm";
 import { generateImage } from "@/lib/providers/image";
 import { generateVoice } from "@/lib/providers/tts";
 import { understandImage } from "@/lib/providers/vlm";
+import { uploadToR2, generateR2Key } from "@/lib/r2";
 
 const REFERENCE_IMAGE_MAP: Record<string, string> = {
   "陆沉舟": "luchenzhou.jpg",
@@ -110,23 +111,34 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "角色不存在" }, { status: 400 });
     }
 
-    // 2. 保存用户消息（图片类型时先用 VLM 分析）
+    // 2. 保存用户消息（图片类型时先上传到 R2，再用 VLM 分析）
     let imageDescription: string | null = null;
+    let finalContentText = contentText || null;
 
     if (messageType === "image" && contentText) {
       try {
         const base64Data = extractBase64FromDataUri(contentText);
+        const mimeType = extractMimeTypeFromDataUri(contentText) || "image/jpeg";
         if (base64Data) {
           const buffer = Buffer.from(base64Data, "base64");
-          const mimeType = extractMimeTypeFromDataUri(contentText) || "image/jpeg";
           imageDescription = await understandImage(
             buffer,
             mimeType,
             "请用一句话简要描述这张图片的内容，不超过30字。"
           );
+
+          // 上传到 R2 获取永久链接
+          const ext = mimeType.split("/")[1] || "png";
+          const key = generateR2Key(
+            "user-uploads",
+            userId,
+            Date.now().toString()
+          ) + `.${ext}`;
+          const permanentUrl = await uploadToR2(key, buffer, mimeType);
+          finalContentText = permanentUrl;
         }
       } catch (err) {
-        console.error("VLM image analysis failed:", err);
+        console.error("User image upload/VLM failed:", err);
         imageDescription = "[图片解析失败]";
       }
     }
@@ -138,7 +150,7 @@ export async function POST(request: NextRequest) {
         characterId,
         senderType: "user",
         messageType,
-        contentText: contentText || null,
+        contentText: finalContentText,
         imageDescription,
         status: "sent",
       })
@@ -415,14 +427,18 @@ export async function POST(request: NextRequest) {
             const referenceImage = await loadReferenceImage(char.name);
             const imageBuffer = await generateImage(imagePrompt, referenceImage);
 
-            // TODO: 上传图片到 R2 或存储服务，获取持久 URL
-            // 目前 R2 未配置，先使用 base64 数据 URI 或临时方案
-            const base64Url = `data:image/png;base64,${imageBuffer.toString("base64")}`;
+            // 上传到 R2 获取永久链接
+            const key = generateR2Key(
+              "generated",
+              char.name,
+              Date.now().toString()
+            ) + ".png";
+            const permanentUrl = await uploadToR2(key, imageBuffer, "image/png");
 
             await db
               .update(messages)
               .set({
-                contentText: base64Url,
+                contentText: permanentUrl,
                 status: "sent",
               })
               .where(eq(messages.id, imagePlaceholderId));

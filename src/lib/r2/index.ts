@@ -9,13 +9,18 @@ const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID;
 const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY;
 const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME;
 const R2_ENDPOINT = process.env.R2_ENDPOINT;
+const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL;
 
-function getClient() {
+let s3Client: S3Client | null = null;
+
+function getClient(): S3Client {
+  if (s3Client) return s3Client;
+
   if (!R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY || !R2_ENDPOINT) {
     throw new Error("R2 credentials not configured");
   }
 
-  return new S3Client({
+  s3Client = new S3Client({
     region: "auto",
     endpoint: R2_ENDPOINT,
     credentials: {
@@ -23,13 +28,15 @@ function getClient() {
       secretAccessKey: R2_SECRET_ACCESS_KEY,
     },
   });
+
+  return s3Client;
 }
 
 export async function uploadToR2(
   key: string,
   body: Buffer | Uint8Array | string,
   contentType: string
-) {
+): Promise<string> {
   const client = getClient();
   await client.send(
     new PutObjectCommand({
@@ -39,6 +46,11 @@ export async function uploadToR2(
       ContentType: contentType,
     })
   );
+
+  if (R2_PUBLIC_URL) {
+    const base = R2_PUBLIC_URL.replace(/\/$/, "");
+    return `${base}/${key}`;
+  }
   return key;
 }
 
@@ -54,6 +66,6 @@ export async function getSignedUrlForR2(key: string, expiresIn = 600) {
 export function generateR2Key(
   type: "user-uploads" | "generated" | "share-cards" | "character-assets",
   ...segments: string[]
-) {
-  return `${type}/${segments.join("/")}`;
+): string {
+  return `${type}/${segments.join("-")}`;
 }
