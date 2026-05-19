@@ -5,6 +5,7 @@ import path from "path";
 import { db } from "@/lib/db";
 import { messages, characters, userCharacterRelationships, userProfiles } from "@/lib/db/schema";
 import { eq, and, desc } from "drizzle-orm";
+import { requireAuth } from "@/lib/auth-session";
 import { LIMITS } from "@/constants/limits";
 import { callLLM, type LLMMessage } from "@/lib/providers/llm";
 import { generateImage } from "@/lib/providers/image";
@@ -97,8 +98,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // TODO: 从 session 获取真实 userId
-    const userId = request.headers.get("x-user-id") || "temp-user-id";
+    const authResult = await requireAuth(request);
+    if ("error" in authResult) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status });
+    }
+    const userId = authResult.user.id;
 
     // 1. 校验角色
     const character = await db

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { messages } from "@/lib/db/schema";
 import { eq, and, desc } from "drizzle-orm";
+import { requireAuth } from "@/lib/auth-session";
 
 // GET /api/chat/messages?character_id=xxx
 export async function GET(request: NextRequest) {
@@ -16,8 +17,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // TODO: 从 session 获取 userId
-    const userId = request.headers.get("x-user-id") || "temp-user-id";
+    const authResult = await requireAuth(request);
+    if ("error" in authResult) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status });
+    }
+    const userId = authResult.user.id;
 
     const allMessages = await db
       .select()

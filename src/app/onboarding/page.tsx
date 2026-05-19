@@ -26,12 +26,25 @@ export default function OnboardingPage() {
 
     setLoading(true);
 
-    // TODO: 调用 API 保存 user_profiles
-    console.log("保存基础档案:", { nickname, preferredName });
+    try {
+      const res = await fetch("/api/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nickname: nickname.trim(), preferredName: preferredName.trim() }),
+      });
 
-    setTimeout(() => {
+      if (!res.ok) {
+        const data = await res.json();
+        alert(data.error || "保存失败，请重试");
+        setLoading(false);
+        return;
+      }
+
       router.push("/characters");
-    }, 500);
+    } catch {
+      alert("保存失败，请重试");
+      setLoading(false);
+    }
   };
 
   return (

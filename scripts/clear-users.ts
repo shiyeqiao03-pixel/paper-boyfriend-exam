@@ -15,6 +15,27 @@ async function clearUsers() {
   console.log("正在清空用户数据...");
 
   // 按外键依赖顺序清空：先子表，再主表
+  await sql`DELETE FROM "email_recall_logs"`;
+  console.log("✓ email_recall_logs 表已清空");
+
+  await sql`DELETE FROM "files"`;
+  console.log("✓ files 表已清空");
+
+  await sql`DELETE FROM "messages"`;
+  console.log("✓ messages 表已清空");
+
+  await sql`DELETE FROM "user_memories"`;
+  console.log("✓ user_memories 表已清空");
+
+  await sql`DELETE FROM "character_memories"`;
+  console.log("✓ character_memories 表已清空");
+
+  await sql`DELETE FROM "user_character_relationships"`;
+  console.log("✓ user_character_relationships 表已清空");
+
+  await sql`DELETE FROM "user_profiles"`;
+  console.log("✓ user_profiles 表已清空");
+
   await sql`DELETE FROM "session"`;
   console.log("✓ session 表已清空");
 

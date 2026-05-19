@@ -2,14 +2,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { userProfiles } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import { requireAuth } from "@/lib/auth-session";
 
 // POST /api/profile - 创建或更新用户资料
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { userId, nickname, preferredName } = body;
+    const authResult = await requireAuth(request);
+    if ("error" in authResult) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status });
+    }
+    const userId = authResult.user.id;
 
-    if (!userId || !nickname || !preferredName) {
+    const body = await request.json();
+    const { nickname, preferredName } = body;
+
+    if (!nickname || !preferredName) {
       return NextResponse.json(
         { error: "缺少必要字段" },
         { status: 400 }
@@ -23,7 +30,6 @@ export async function POST(request: NextRequest) {
       .limit(1);
 
     if (existing.length > 0) {
-      // 更新
       const updated = await db
         .update(userProfiles)
         .set({
@@ -38,7 +44,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ profile: updated[0] });
     }
 
-    // 创建
     const created = await db
       .insert(userProfiles)
       .values({
@@ -63,16 +68,11 @@ export async function POST(request: NextRequest) {
 // GET /api/profile - 获取当前用户资料
 export async function GET(request: NextRequest) {
   try {
-    // TODO: 从 session 获取 userId
-    // 任务 3 骨架代码，真实 session 校验在联调时接入
-    const userId = request.headers.get("x-user-id");
-
-    if (!userId) {
-      return NextResponse.json(
-        { error: "未登录" },
-        { status: 401 }
-      );
+    const authResult = await requireAuth(request);
+    if ("error" in authResult) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status });
     }
+    const userId = authResult.user.id;
 
     const profile = await db
       .select()
