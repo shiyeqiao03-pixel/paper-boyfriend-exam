@@ -1,9 +1,19 @@
 import type { Metadata } from "next";
+import { Noto_Serif_SC } from "next/font/google";
+import "@chinese-fonts/lxgwwenkai/dist/LXGWWenKai-Regular/result.css";
 import "./globals.css";
+
+const notoSerifSC = Noto_Serif_SC({
+  subsets: ["latin"],
+  weight: ["400", "600", "700"],
+  variable: "--font-serif",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "纸片人男友",
-  description: "一个 AI 虚拟男友聊天网站。你可以和不同性格的角色聊天、收语音、看照片，慢慢建立专属关系。",
+  description:
+    "一个 AI 虚拟男友聊天网站。你可以和不同性格的角色聊天、收语音、看照片，慢慢建立专属关系。",
 };
 
 export default function RootLayout({
@@ -13,7 +23,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN">
-      <body className="min-h-screen bg-background text-foreground">
+      <body
+        className={`${notoSerifSC.variable} min-h-screen bg-background text-foreground font-body`}
+      >
         {children}
       </body>
     </html>

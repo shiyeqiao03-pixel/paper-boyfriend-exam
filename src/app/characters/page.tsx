@@ -3,7 +3,10 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import Link from "next/link";
 import { getAvatarUrl } from "@/lib/character-avatars";
+import { authClient } from "@/lib/auth-client";
+import { ArrowRight, ArrowLeft, LogOut } from "lucide-react";
 
 interface Character {
   id: string;
@@ -11,12 +14,22 @@ interface Character {
   shortLabel: string;
   selectionText: string;
   introText: string;
+  occupation: string;
 }
 
 export default function CharactersPage() {
   const router = useRouter();
   const [characters, setCharacters] = useState<Character[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const handleLogout = async () => {
+    try {
+      await authClient.signOut();
+    } catch {
+      // 忽略错误
+    }
+    window.location.replace("/auth");
+  };
 
   useEffect(() => {
     fetch("/api/characters")
@@ -31,76 +44,136 @@ export default function CharactersPage() {
   }, []);
 
   const handleSelect = async (characterId: string) => {
+    console.log("[选择角色] 点击:", characterId);
     try {
       const res = await fetch(
         `/api/characters/${characterId}/relationship`,
         { method: "GET" }
       );
-      const data = await res.json();
-      if (data.relationship?.introSeen) {
-        router.push(`/chat/${characterId}`);
-      } else {
-        router.push(`/characters/${characterId}/intro`);
+      console.log("[选择角色] API 状态:", res.status);
+
+      // 未登录，跳转到登录页
+      if (res.status === 401) {
+        window.location.href = "/auth?logout=1";
+        return;
       }
-    } catch {
-      router.push(`/characters/${characterId}/intro`);
+
+      const data = await res.json();
+      console.log("[选择角色] API 数据:", data);
+
+      if (data.relationship?.introSeen) {
+        window.location.href = `/chat/${characterId}`;
+      } else {
+        window.location.href = `/characters/${characterId}/intro`;
+      }
+    } catch (err) {
+      console.error("[选择角色] 出错:", err);
+      window.location.href = `/characters/${characterId}/intro`;
     }
   };
 
+  if (loading) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-background font-body">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-px w-16 animate-pulse bg-border" />
+          <p className="text-sm text-foreground-muted">加载中……</p>
+        </div>
+      </main>
+    );
+  }
+
   return (
-    <main className="min-h-screen bg-background px-md py-xl">
-      <div className="mx-auto max-w-page">
-        <h1 className="mb-xl text-center text-xl font-semibold text-foreground">
+    <main className="min-h-screen bg-background font-body">
+      {/* Header with Back Link & Logout */}
+      <header className="flex items-center justify-between px-8 py-6 lg:px-16">
+        <Link
+          href="/"
+          className="inline-flex items-center gap-2 text-sm text-foreground-muted transition-colors hover:text-foreground"
+        >
+          <ArrowLeft size={16} />
+          返回首页
+        </Link>
+        <button
+          onClick={handleLogout}
+          className="inline-flex items-center gap-2 text-sm text-foreground-muted transition-colors hover:text-primary"
+        >
+          <LogOut size={16} />
+          退出登录
+        </button>
+      </header>
+
+      {/* Title */}
+      <div className="px-8 pb-4 lg:px-16">
+        <p className="mb-4 text-xs uppercase tracking-[0.3em] text-foreground-muted">
+          Select Character
+        </p>
+        <h1 className="font-display text-3xl font-semibold leading-tight text-foreground lg:text-4xl">
           今天，想和谁聊天？
         </h1>
-
-        {loading ? (
-          <p className="text-center text-foreground-muted">加载中……</p>
-        ) : (
-          <div className="grid grid-cols-1 gap-md sm:grid-cols-2">
-            {characters.map((char) => (
-              <div
-                key={char.id}
-                className="flex flex-col rounded-lg bg-white p-6 shadow-card transition-all hover:-translate-y-0.5 hover:shadow-light"
-              >
-                <div className="mb-4 flex items-center gap-4">
-                  <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-full bg-muted">
-                    {getAvatarUrl(char.name) && (
-                      <Image
-                        src={getAvatarUrl(char.name)}
-                        alt={char.name}
-                        width={64}
-                        height={64}
-                        className="h-full w-full object-cover"
-                      />
-                    )}
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-semibold text-foreground">
-                      {char.name}
-                    </h2>
-                    <p className="text-sm text-accent">{char.shortLabel}</p>
-                  </div>
-                </div>
-
-                <p className="mb-2 text-sm text-foreground-secondary">
-                  {char.introText}
-                </p>
-                <p className="mb-4 text-sm text-foreground-secondary">
-                  {char.selectionText}
-                </p>
-
-                <button
-                  onClick={() => handleSelect(char.id)}
-                  className="mt-auto w-full rounded-button bg-primary py-2.5 text-sm font-semibold text-primary-foreground shadow-subtle transition-all hover:bg-primary-hover"
-                >
-                  和他聊天
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
+
+      {/* Character Grid - Editorial Style */}
+      <section className="px-8 pb-20 lg:px-16">
+        <div className="mx-auto max-w-page">
+          <div className="grid grid-cols-1 gap-px bg-border md:grid-cols-2">
+            {characters.map((char, index) => {
+              const avatarUrl = getAvatarUrl(char.name);
+              return (
+                <button
+                  key={char.id}
+                  onClick={() => handleSelect(char.id)}
+                  className="group relative bg-background text-left transition-colors hover:bg-cream-100"
+                >
+                  <div className="flex flex-col gap-0 md:flex-row">
+                    {/* Image */}
+                    <div className="relative aspect-[4/5] w-full overflow-hidden md:w-[45%]">
+                      {avatarUrl && (
+                        <Image
+                          src={avatarUrl}
+                          alt={char.name}
+                          fill
+                          className="object-cover transition-transform duration-700 group-hover:scale-105"
+                        />
+                      )}
+                      <div className="absolute inset-0 bg-gradient-to-t from-charcoal-900/40 via-transparent to-transparent md:bg-gradient-to-r" />
+                    </div>
+
+                    {/* Content */}
+                    <div className="flex flex-1 flex-col justify-between p-6 md:p-8">
+                      <div>
+                        {/* Index Number */}
+                        <span className="mb-4 block text-xs text-foreground-muted">
+                          0{index + 1}
+                        </span>
+
+                        {/* Name & Label */}
+                        <h2 className="mb-2 font-display text-2xl font-semibold text-foreground">
+                          {char.name}
+                        </h2>
+                        <p className="mb-4 text-sm text-primary">
+                          {char.shortLabel}
+                        </p>
+
+                        {/* Description */}
+                        <p className="mb-6 text-sm leading-relaxed text-foreground-secondary">
+                          {char.introText}
+                        </p>
+                      </div>
+
+                      {/* CTA */}
+                      <div className="flex items-center gap-2 text-sm font-medium text-primary transition-all group-hover:gap-3">
+                        <span>和他聊天</span>
+                        <ArrowRight size={16} />
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </section>
     </main>
   );
 }

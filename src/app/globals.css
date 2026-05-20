@@ -4,26 +4,26 @@
 
 @layer base {
   :root {
-    --background: 30 20% 97%;
-    --foreground: 24 7% 28%;
-    --card: 0 0% 100%;
-    --card-foreground: 24 7% 28%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 24 7% 28%;
-    --primary: 0 30% 74%;
+    --background: 40 33% 98%;
+    --foreground: 24 7% 16%;
+    --card: 40 33% 98%;
+    --card-foreground: 24 7% 16%;
+    --popover: 40 33% 98%;
+    --popover-foreground: 24 7% 16%;
+    --primary: 0 45% 56%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 30 15% 94%;
-    --secondary-foreground: 24 7% 28%;
-    --muted: 30 10% 90%;
-    --muted-foreground: 24 5% 58%;
-    --accent: 270 15% 72%;
-    --accent-foreground: 24 7% 28%;
-    --destructive: 0 30% 74%;
-    --destructive-foreground: 24 7% 28%;
-    --border: 30 12% 90%;
-    --input: 30 10% 84%;
-    --ring: 0 30% 74%;
-    --radius: 1rem;
+    --secondary: 30 20% 95%;
+    --secondary-foreground: 24 7% 16%;
+    --muted: 30 12% 92%;
+    --muted-foreground: 24 5% 42%;
+    --accent: 0 45% 56%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 45% 56%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 30 15% 90%;
+    --input: 30 12% 86%;
+    --ring: 0 45% 56%;
+    --radius: 0.5rem;
   }
 
   * {
@@ -38,14 +38,30 @@
   html {
     scroll-behavior: smooth;
   }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display;
+  }
 }
 
 @layer utilities {
+  .font-display {
+    font-family: var(--font-serif), "Noto Serif SC", "Songti SC", serif;
+  }
+
+  .font-body {
+    font-family: "LXGWWenKai", "LXGW WenKai", "Noto Sans SC", "PingFang SC", sans-serif;
+  }
+
   .safe-bottom {
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
   .safe-top {
     padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  .text-balance {
+    text-wrap: balance;
   }
 }

@@ -21,10 +21,7 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const isLoggedIn = hasSessionCookie(request);
 
-  if (pathname === "/auth" && isLoggedIn) {
-    return NextResponse.redirect(new URL("/characters", request.url));
-  }
-
+  // 未登录用户访问受保护路由，重定向到登录页
   if (isProtectedRoute(pathname) && !isLoggedIn) {
     return NextResponse.redirect(new URL("/auth", request.url));
   }
