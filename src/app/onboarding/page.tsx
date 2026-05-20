@@ -21,6 +21,20 @@ export default function OnboardingPage() {
     }
   }, []);
 
+  // 已填写资料的用户自动跳转到角色页
+  useEffect(() => {
+    fetch("/api/profile")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.profile?.nickname && data.profile?.preferredName) {
+          router.replace("/characters");
+        }
+      })
+      .catch(() => {
+        // 忽略错误，让用户正常填写
+      });
+  }, [router]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nickname.trim() || !preferredName.trim()) return;

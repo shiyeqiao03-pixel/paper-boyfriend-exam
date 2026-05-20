@@ -109,7 +109,7 @@ export default function AuthPage() {
     try {
       await authClient.signIn.social({
         provider: "google",
-        callbackURL: "/characters",
+        callbackURL: "/onboarding",
       });
     } catch (err: any) {
       setError(err.message || "Google 登录失败，请重试");
@@ -120,7 +120,7 @@ export default function AuthPage() {
     try {
       await authClient.signIn.social({
         provider: "github",
-        callbackURL: "/characters",
+        callbackURL: "/onboarding",
       });
     } catch (err: any) {
       setError(err.message || "GitHub 登录失败，请重试");

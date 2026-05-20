@@ -24,6 +24,8 @@ export const auth = betterAuth({
     google: {
       clientId: process.env.GOOGLE_CLIENT_ID || "",
       clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+      // 每次都显示 Google 账号选择界面
+      prompt: "select_account",
     },
     github: {
       clientId: process.env.GITHUB_CLIENT_ID || "",

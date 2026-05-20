@@ -126,14 +126,15 @@ export default function CharactersPage() {
                   className="group relative bg-background text-left transition-colors hover:bg-cream-100"
                 >
                   <div className="flex flex-col gap-0 md:flex-row">
-                    {/* Image */}
-                    <div className="relative aspect-[4/5] w-full overflow-hidden md:w-[45%]">
+                    {/* Image - Fixed height for consistency */}
+                    <div className="relative h-[280px] w-full shrink-0 overflow-hidden sm:h-[320px] md:h-full md:w-[45%] md:min-h-[360px]">
                       {avatarUrl && (
                         <Image
                           src={avatarUrl}
                           alt={char.name}
                           fill
                           className="object-cover transition-transform duration-700 group-hover:scale-105"
+                          sizes="(max-width: 768px) 100vw, 30vw"
                         />
                       )}
                       <div className="absolute inset-0 bg-gradient-to-t from-charcoal-900/40 via-transparent to-transparent md:bg-gradient-to-r" />
