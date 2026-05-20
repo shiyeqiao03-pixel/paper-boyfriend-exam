@@ -12,6 +12,7 @@ export const auth = betterAuth({
     "http://localhost:3000",
     "http://localhost:3001",
     "https://paperboyfriend.xyz",
+    "https://www.paperboyfriend.xyz",
     process.env.BETTER_AUTH_URL,
   ].filter(Boolean) as string[],
   customFetch: fetchWithProxy,
