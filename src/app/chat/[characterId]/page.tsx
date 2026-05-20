@@ -7,6 +7,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { formatTime, shouldShowTimeDivider } from "@/lib/utils";
 import { getAvatarUrl } from "@/lib/character-avatars";
+import VoicePlayer from "./voice-player";
 
 interface ChatMessage {
   id: string;
@@ -118,6 +119,49 @@ export default function ChatPage() {
     }
   };
 
+  const sendVoiceMessage = async (audioUrl: string, duration: number) => {
+    if (sending) return;
+    setSending(true);
+
+    const tempUserMsg: ChatMessage = {
+      id: `temp-${Date.now()}`,
+      senderType: "user",
+      messageType: "voice",
+      contentText: audioUrl,
+      status: "sent",
+      createdAt: new Date().toISOString(),
+      replyGroupId: null,
+    };
+    setMessages((prev) => [...prev, tempUserMsg]);
+    setTimeout(scrollToBottom, 50);
+
+    try {
+      const res = await fetch("/api/chat/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          characterId,
+          messageType: "voice",
+          contentText: audioUrl,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data.messages) {
+        setMessages((prev) => {
+          const filtered = prev.filter((m) => m.id !== tempUserMsg.id);
+          return [...filtered, ...data.messages];
+        });
+        setTimeout(scrollToBottom, 100);
+      }
+    } catch (error) {
+      console.error("发送语音失败:", error);
+    } finally {
+      setSending(false);
+    }
+  };
+
   const handleSendImage = async (file: File) => {
     if (sending) return;
     setSending(true);
@@ -213,49 +257,28 @@ export default function ChatPage() {
 
         try {
           const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-          const arrayBuffer = await audioBlob.arrayBuffer();
-          const audioContext = new AudioContext({ sampleRate: 16000 });
-          const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
 
-          const resampledBuffer = audioContext.createBuffer(
-            1,
-            Math.floor(audioBuffer.length * (16000 / audioBuffer.sampleRate)),
-            16000
-          );
-          const channelData = audioBuffer.getChannelData(0);
-          const resampledData = resampledBuffer.getChannelData(0);
-          const ratio = audioBuffer.sampleRate / 16000;
+          // 1. 上传语音到 R2
+          const uploadForm = new FormData();
+          uploadForm.append("audio", audioBlob, "voice.webm");
 
-          for (let i = 0; i < resampledData.length; i++) {
-            const idx = Math.floor(i * ratio);
-            resampledData[i] = channelData[idx];
-          }
-
-          const pcmBuffer = new Int16Array(resampledData.length);
-          for (let i = 0; i < resampledData.length; i++) {
-            const s = Math.max(-1, Math.min(1, resampledData[i]));
-            pcmBuffer[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
-          }
-          const pcmBlob = new Blob([pcmBuffer], { type: "audio/pcm" });
-
-          const formData = new FormData();
-          formData.append("audio", pcmBlob, "audio.pcm");
-
-          const res = await fetch("/api/stt/transcribe", {
+          const uploadRes = await fetch("/api/chat/voice", {
             method: "POST",
-            body: formData,
+            body: uploadForm,
           });
+          const uploadData = await uploadRes.json();
 
-          const data = await res.json();
-          if (data.success && data.text) {
-            setInputText(data.text);
-            setTimeout(() => handleSend(), 100);
-          } else {
-            alert(data.error || "语音识别失败，请检查麦克风权限或稍后重试");
+          if (!uploadData.success || !uploadData.audioUrl) {
+            alert(uploadData.error || "语音上传失败");
+            setProcessingVoice(false);
+            return;
           }
+
+          // 2. 发送语音消息
+          await sendVoiceMessage(uploadData.audioUrl, uploadData.duration);
         } catch (err: any) {
-          console.error("语音识别失败:", err);
-          alert("语音识别服务暂不可用，请直接输入文字");
+          console.error("发送语音失败:", err);
+          alert("发送语音失败，请重试");
         } finally {
           setProcessingVoice(false);
         }
@@ -338,6 +361,11 @@ export default function ChatPage() {
                     alt="图片"
                     className="max-w-full rounded"
                     loading="lazy"
+                  />
+                ) : msg.messageType === "voice" ? (
+                  <VoicePlayer
+                    src={msg.contentText}
+                    isUser={isUser}
                   />
                 ) : (
                   <p className="text-sm leading-relaxed">{msg.contentText}</p>
@@ -473,6 +501,18 @@ export default function ChatPage() {
 
       {/* Input Area */}
       <div className="flex-shrink-0 border-t border-border bg-cream-50 px-4 py-3 safe-bottom">
+        {recording && (
+          <div className="mx-auto mb-2 flex max-w-2xl items-center gap-2 text-xs text-primary">
+            <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-primary" />
+            正在录音，点击麦克风按钮结束
+          </div>
+        )}
+        {processingVoice && (
+          <div className="mx-auto mb-2 flex max-w-2xl items-center gap-2 text-xs text-foreground-muted">
+            <div className="h-3 w-3 animate-spin rounded-full border-2 border-foreground-muted border-t-transparent" />
+            语音识别中...
+          </div>
+        )}
         <div className="mx-auto flex max-w-2xl items-center gap-2">
           <button
             onClick={toggleRecording}
@@ -496,7 +536,7 @@ export default function ChatPage() {
 
           <button
             onClick={() => fileInputRef.current?.click()}
-            disabled={sending}
+            disabled={sending || recording}
             className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-foreground-muted transition-colors hover:bg-cream-100 disabled:opacity-30"
           >
             <ImagePlus size={18} />
@@ -515,14 +555,14 @@ export default function ChatPage() {
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="说点什么……"
-            disabled={sending}
+            placeholder={recording ? "正在录音..." : processingVoice ? "语音识别中..." : "说点什么……"}
+            disabled={sending || recording || processingVoice}
             className="flex-1 rounded-full border border-border bg-white px-4 py-2 text-sm text-foreground outline-none transition-all focus:border-primary focus:ring-1 focus:ring-primary/20 disabled:opacity-50"
           />
 
           <button
             onClick={handleSend}
-            disabled={!inputText.trim() || sending}
+            disabled={!inputText.trim() || sending || recording || processingVoice}
             className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-charcoal-800 text-white transition-all hover:bg-charcoal-700 disabled:opacity-30"
           >
             <Send size={16} />
