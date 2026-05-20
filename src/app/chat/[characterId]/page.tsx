@@ -311,7 +311,7 @@ export default function ChatPage() {
             <div
               className={`inline-block rounded-lg px-4 py-3 ${
                 isUser
-                  ? "bg-charcoal-800 text-white"
+                  ? "bg-primary text-white"
                   : "bg-cream-100 text-foreground"
               }`}
             >

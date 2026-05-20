@@ -40,7 +40,7 @@ export default function WelcomeEmail({ userName }: WelcomeEmailProps) {
           {/* Header */}
           <Section
             style={{
-              backgroundColor: "#2d2d2d",
+              backgroundColor: "#f5ebe0",
               padding: "40px 32px",
               textAlign: "center",
             }}
@@ -60,7 +60,7 @@ export default function WelcomeEmail({ userName }: WelcomeEmailProps) {
               style={{
                 fontSize: "22px",
                 fontWeight: 600,
-                color: "#ffffff",
+                color: "#2d2d2d",
                 margin: 0,
                 lineHeight: 1.4,
               }}
@@ -110,7 +110,7 @@ export default function WelcomeEmail({ userName }: WelcomeEmailProps) {
                 href="https://paperboyfriend.xyz/characters"
                 style={{
                   display: "inline-block",
-                  backgroundColor: "#2d2d2d",
+                  backgroundColor: "#c9a0a0",
                   color: "#ffffff",
                   textDecoration: "none",
                   padding: "14px 36px",
