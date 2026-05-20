@@ -36,7 +36,7 @@ export async function sendWelcomeEmail(userEmail: string, userName: string) {
     const html = await render(<WelcomeEmail userName={userName} />);
 
     await resend.emails.send({
-      from: "纸片人男友 <paperboyfriend.xyz>",
+      from: process.env.EMAIL_FROM || "noreply@paperboyfriend.xyz",
       to: userEmail,
       subject: "你好呀，我是你的专属男友 💌",
       html,
