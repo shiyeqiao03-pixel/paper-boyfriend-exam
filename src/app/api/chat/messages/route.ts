@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { messages } from "@/lib/db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, ilike, or } from "drizzle-orm";
 import { requireAuth } from "@/lib/auth-session";
 
 // GET /api/chat/messages?character_id=xxx
@@ -23,12 +23,25 @@ export async function GET(request: NextRequest) {
     }
     const userId = authResult.user.id;
 
+    const q = searchParams.get("q");
+
+    const conditions = [
+      eq(messages.userId, userId),
+      eq(messages.characterId, characterId),
+    ];
+    if (q) {
+      conditions.push(
+        or(
+          ilike(messages.contentText, `%${q}%`),
+          ilike(messages.sttText, `%${q}%`)
+        ) as ReturnType<typeof eq>
+      );
+    }
+
     const allMessages = await db
       .select()
       .from(messages)
-      .where(
-        and(eq(messages.userId, userId), eq(messages.characterId, characterId))
-      )
+      .where(and(...conditions))
       .orderBy(messages.createdAt);
 
     return NextResponse.json({ messages: allMessages });

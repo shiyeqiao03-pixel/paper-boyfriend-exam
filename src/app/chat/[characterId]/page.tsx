@@ -2,7 +2,7 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useCallback } from "react";
-import { ArrowLeft, MoreHorizontal, Send, ImagePlus, Trash2, Home, Users } from "lucide-react";
+import { ArrowLeft, MoreHorizontal, Send, ImagePlus, Trash2, Home, Users, Search, X } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { formatTime, shouldShowTimeDivider } from "@/lib/utils";
@@ -14,6 +14,7 @@ interface ChatMessage {
   senderType: "user" | "character" | "system";
   messageType: "text" | "image" | "voice";
   contentText: string | null;
+  sttText?: string | null;
   status: string;
   createdAt: string;
   replyGroupId: string | null;
@@ -32,6 +33,8 @@ export default function ChatPage() {
   const [recording, setRecording] = useState(false);
   const [processingVoice, setProcessingVoice] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [historySearch, setHistorySearch] = useState("");
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const recordingStartTimeRef = useRef<number>(0);
@@ -382,6 +385,7 @@ export default function ChatPage() {
         )}
 
         <div
+          id={`msg-${msg.id}`}
           className={`mb-4 flex ${isUser ? "justify-end" : "justify-start"}`}
         >
           <div
@@ -453,10 +457,53 @@ export default function ChatPage() {
     );
   };
 
+  const scrollToMessage = (msgId: string) => {
+    setShowHistory(false);
+    const el = document.getElementById(`msg-${msgId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("ring-2", "ring-primary", "ring-offset-2", "rounded-lg");
+      setTimeout(() => {
+        el.classList.remove("ring-2", "ring-primary", "ring-offset-2", "rounded-lg");
+      }, 2000);
+    }
+  };
+
+  const getMessagePreview = (msg: ChatMessage) => {
+    if (msg.messageType === "image") return "[图片]";
+    if (msg.messageType === "voice") return msg.sttText || "[语音]";
+    return msg.contentText || "";
+  };
+
+  const groupMessagesByDate = (msgs: ChatMessage[]) => {
+    const groups: Record<string, ChatMessage[]> = {};
+    for (const msg of msgs) {
+      const dateStr = new Date(msg.createdAt).toLocaleDateString("zh-CN", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+      if (!groups[dateStr]) groups[dateStr] = [];
+      groups[dateStr].push(msg);
+    }
+    return Object.entries(groups).sort(
+      (a, b) => new Date(b[1][0].createdAt).getTime() - new Date(a[1][0].createdAt).getTime()
+    );
+  };
+
+  const filteredMessages = historySearch.trim()
+    ? messages.filter((m) => {
+        const text = (m.contentText || "") + (m.sttText || "");
+        return text.toLowerCase().includes(historySearch.trim().toLowerCase());
+      })
+    : messages;
+
+  const historyGroups = groupMessagesByDate(filteredMessages);
+
   const avatarUrl = getAvatarUrl(characterName);
 
   return (
-    <main className="flex h-screen flex-col bg-background font-body">
+    <main className="relative flex h-screen flex-col bg-background font-body">
       {/* TopBar - Minimal */}
       <header className="flex h-14 flex-shrink-0 items-center border-b border-border px-4 lg:px-6">
         <Link
@@ -511,6 +558,16 @@ export default function ChatPage() {
                 <Users size={16} />
                 切换角色
               </button>
+              <button
+                onClick={() => {
+                  setMenuOpen(false);
+                  setShowHistory(true);
+                }}
+                className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-foreground transition-colors hover:bg-cream-100"
+              >
+                <Search size={16} />
+                聊天记录
+              </button>
               <div className="mx-4 my-1 h-px bg-border" />
               <button
                 onClick={async () => {
@@ -537,6 +594,103 @@ export default function ChatPage() {
           )}
         </div>
       </header>
+
+      {/* History Panel */}
+      {showHistory && (
+        <div className="absolute inset-0 z-40 flex flex-col bg-background">
+          {/* History Header */}
+          <div className="flex h-14 flex-shrink-0 items-center border-b border-border px-4">
+            <button
+              onClick={() => setShowHistory(false)}
+              className="mr-3 flex h-8 w-8 items-center justify-center rounded-full text-foreground-muted transition-colors hover:bg-cream-100"
+            >
+              <X size={18} />
+            </button>
+            <span className="flex-1 text-sm font-medium text-foreground">
+              与 {characterName} 的聊天记录
+            </span>
+          </div>
+
+          {/* Search Input */}
+          <div className="flex-shrink-0 border-b border-border px-4 py-3">
+            <div className="relative">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-foreground-muted" />
+              <input
+                type="text"
+                value={historySearch}
+                onChange={(e) => setHistorySearch(e.target.value)}
+                placeholder="搜索聊天记录..."
+                className="h-10 w-full rounded-lg border border-border bg-cream-50 pl-9 pr-3 text-sm text-foreground outline-none placeholder:text-foreground-muted focus:border-primary"
+                autoFocus
+              />
+            </div>
+          </div>
+
+          {/* History List */}
+          <div className="flex-1 overflow-y-auto px-4 py-4">
+            {historyGroups.length === 0 ? (
+              <div className="flex h-full items-center justify-center">
+                <p className="text-sm text-foreground-muted">
+                  {historySearch.trim() ? "没有找到匹配的消息" : "暂无聊天记录"}
+                </p>
+              </div>
+            ) : (
+              historyGroups.map(([date, msgs]) => (
+                <div key={date} className="mb-6">
+                  <div className="sticky top-0 mb-3 bg-background py-1">
+                    <span className="text-xs font-medium text-foreground-muted">{date}</span>
+                  </div>
+                  <div className="space-y-3">
+                    {msgs.map((msg) => {
+                      const isUser = msg.senderType === "user";
+                      const preview = getMessagePreview(msg);
+                      const time = new Date(msg.createdAt).toLocaleTimeString("zh-CN", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      });
+                      return (
+                        <button
+                          key={msg.id}
+                          onClick={() => scrollToMessage(msg.id)}
+                          className="flex w-full items-start gap-3 rounded-lg p-2 text-left transition-colors hover:bg-cream-100"
+                        >
+                          <div className="relative h-8 w-8 flex-shrink-0 overflow-hidden rounded-full">
+                            {isUser ? (
+                              <div className="flex h-full w-full items-center justify-center bg-primary text-[10px] font-medium text-white">
+                                                                我
+                              </div>
+                            ) : (
+                              avatarUrl && (
+                                <Image
+                                  src={avatarUrl}
+                                  alt={characterName}
+                                  fill
+                                  className="object-cover"
+                                />
+                              )
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs text-foreground-muted">
+                                {isUser ? "我" : characterName}
+                              </span>
+                              <span className="text-[10px] text-foreground-muted">{time}</span>
+                            </div>
+                            <p className="mt-0.5 truncate text-sm text-foreground">
+                              {preview}
+                            </p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Chat Area */}
       <div className="flex-1 overflow-y-auto px-4 py-6 lg:px-6">
