@@ -475,30 +475,12 @@ export default function ChatPage() {
     return msg.contentText || "";
   };
 
-  const groupMessagesByDate = (msgs: ChatMessage[]) => {
-    const groups: Record<string, ChatMessage[]> = {};
-    for (const msg of msgs) {
-      const dateStr = new Date(msg.createdAt).toLocaleDateString("zh-CN", {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      });
-      if (!groups[dateStr]) groups[dateStr] = [];
-      groups[dateStr].push(msg);
-    }
-    return Object.entries(groups).sort(
-      (a, b) => new Date(b[1][0].createdAt).getTime() - new Date(a[1][0].createdAt).getTime()
-    );
-  };
-
   const filteredMessages = historySearch.trim()
     ? messages.filter((m) => {
         const text = (m.contentText || "") + (m.sttText || "");
         return text.toLowerCase().includes(historySearch.trim().toLowerCase());
       })
     : messages;
-
-  const historyGroups = groupMessagesByDate(filteredMessages);
 
   const avatarUrl = getAvatarUrl(characterName);
 
@@ -628,77 +610,73 @@ export default function ChatPage() {
 
           {/* History List */}
           <div className="flex-1 overflow-y-auto px-4 py-4">
-            {historyGroups.length === 0 ? (
+            {filteredMessages.length === 0 ? (
               <div className="flex h-full items-center justify-center">
                 <p className="text-sm text-foreground-muted">
                   {historySearch.trim() ? "没有找到匹配的消息" : "暂无聊天记录"}
                 </p>
               </div>
             ) : (
-              historyGroups.map(([date, msgs]) => (
-                <div key={date} className="mb-6">
-                  <div className="sticky top-0 z-10 bg-background py-2">
-                    <span className="text-xs font-medium text-foreground-muted">{date}</span>
-                  </div>
-                  <div className="space-y-3">
-                    {msgs.map((msg) => {
-                      const isUser = msg.senderType === "user";
-                      const preview = getMessagePreview(msg);
-                      const time = new Date(msg.createdAt).toLocaleTimeString("zh-CN", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      });
-                      const keyword = historySearch.trim().toLowerCase();
-                      const renderHighlight = (text: string) => {
-                        if (!keyword) return text;
-                        const parts = text.split(new RegExp(`(${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'));
-                        return parts.map((part, i) =>
-                          part.toLowerCase() === keyword ? (
-                            <span key={i} className="font-medium text-primary">{part}</span>
-                          ) : (
-                            part
+              <div className="space-y-1">
+                {filteredMessages.map((msg) => {
+                  const isUser = msg.senderType === "user";
+                  const preview = getMessagePreview(msg);
+                  const fullDateTime = new Date(msg.createdAt).toLocaleString("zh-CN", {
+                    year: "numeric",
+                    month: "long",
+                    day: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  });
+                  const keyword = historySearch.trim().toLowerCase();
+                  const renderHighlight = (text: string) => {
+                    if (!keyword) return text;
+                    const parts = text.split(new RegExp(`(${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'));
+                    return parts.map((part, i) =>
+                      part.toLowerCase() === keyword ? (
+                        <span key={i} className="font-medium text-primary">{part}</span>
+                      ) : (
+                        part
+                      )
+                    );
+                  };
+                  return (
+                    <button
+                      key={msg.id}
+                      onClick={() => scrollToMessage(msg.id)}
+                      className="flex w-full items-start gap-3 rounded-lg p-2 text-left transition-colors hover:bg-cream-100"
+                    >
+                      <div className="relative h-8 w-8 flex-shrink-0 overflow-hidden rounded-full">
+                        {isUser ? (
+                          <div className="flex h-full w-full items-center justify-center bg-primary text-[10px] font-medium text-white">
+                            我
+                          </div>
+                        ) : (
+                          avatarUrl && (
+                            <Image
+                              src={avatarUrl}
+                              alt={characterName}
+                              fill
+                              className="object-cover"
+                            />
                           )
-                        );
-                      };
-                      return (
-                        <button
-                          key={msg.id}
-                          onClick={() => scrollToMessage(msg.id)}
-                          className="flex w-full items-start gap-3 rounded-lg p-2 text-left transition-colors hover:bg-cream-100"
-                        >
-                          <div className="relative h-8 w-8 flex-shrink-0 overflow-hidden rounded-full">
-                            {isUser ? (
-                              <div className="flex h-full w-full items-center justify-center bg-primary text-[10px] font-medium text-white">
-                                                                我
-                              </div>
-                            ) : (
-                              avatarUrl && (
-                                <Image
-                                  src={avatarUrl}
-                                  alt={characterName}
-                                  fill
-                                  className="object-cover"
-                                />
-                              )
-                            )}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs text-foreground-muted">
-                                {isUser ? "我" : characterName}
-                              </span>
-                              <span className="text-[10px] text-foreground-muted">{time}</span>
-                            </div>
-                            <p className="mt-0.5 truncate text-sm text-foreground">
-                              {renderHighlight(preview)}
-                            </p>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-foreground-muted">
+                            {isUser ? "我" : characterName}
+                          </span>
+                          <span className="text-[10px] text-foreground-muted">{fullDateTime}</span>
+                        </div>
+                        <p className="mt-0.5 truncate text-sm text-foreground">
+                          {renderHighlight(preview)}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             )}
           </div>
         </div>
