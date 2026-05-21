@@ -20,6 +20,7 @@ export const messages = pgTable("messages", {
   fileId: uuid("file_id"),
   sttText: text("stt_text"),
   imageDescription: text("image_description"),
+  duration: integer("duration"),
   replyGroupId: uuid("reply_group_id"),
   status: varchar("status", { length: 50 }).notNull().default("sent"),
   errorCode: varchar("error_code", { length: 100 }),

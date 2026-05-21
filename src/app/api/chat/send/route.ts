@@ -89,7 +89,7 @@ ${character.basePrompt}
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { characterId, messageType = "text", contentText } = body;
+    const { characterId, messageType = "text", contentText, duration, sttText } = body;
 
     if (!characterId) {
       return NextResponse.json(
@@ -156,6 +156,8 @@ export async function POST(request: NextRequest) {
         messageType,
         contentText: finalContentText,
         imageDescription,
+        sttText: sttText || null,
+        duration: duration ? Number(duration) : null,
         status: "sent",
       })
       .returning();
@@ -237,8 +239,17 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // 当前消息如果是语音，使用转写文字或兜底描述
+    let currentUserContent = contentText || "";
+    if (messageType === "voice") {
+      currentUserContent = sttText ? `[语音消息] ${sttText}` : "[用户发送了一条语音消息]";
+    } else if (messageType === "image") {
+      currentUserContent = imageDescription
+        ? `[用户发了一张图片：${imageDescription}]`
+        : "[图片]";
+    }
+
     // 在第一条用户消息前插入 system prompt，或作为第一条消息
-    const currentUserContent = contentText || "";
     if (llmMessages.length > 0 && llmMessages[0].role === "user") {
       // 把 system prompt 加在第一条 user 消息前面
       llmMessages[0].content = `[系统设定]\n${systemPrompt}\n\n[用户消息]\n${llmMessages[0].content}`;

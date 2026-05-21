@@ -1,9 +1,5 @@
 import { NextResponse } from "next/server";
 import { transcribeVoice } from "@/lib/providers/stt";
-import fs from "fs/promises";
-import os from "os";
-import path from "path";
-import { writeFile } from "fs/promises";
 
 // 支持最大1分钟语音（Vercel Hobby限制）
 export const maxDuration = 60;

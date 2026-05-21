@@ -14,13 +14,24 @@ export default function VoicePlayer({ src, duration = 0, isUser = false }: Voice
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [audioDuration, setAudioDuration] = useState(duration);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
+    if (duration > 0) {
+      setAudioDuration(duration);
+    }
+  }, [duration]);
+
+  useEffect(() => {
+    setLoadError(false);
     const audio = new Audio(src);
     audioRef.current = audio;
 
     audio.addEventListener("loadedmetadata", () => {
-      setAudioDuration(Math.round(audio.duration));
+      if (audio.duration > 0 && isFinite(audio.duration)) {
+        setAudioDuration(Math.round(audio.duration));
+      }
+      setLoadError(false);
     });
 
     audio.addEventListener("timeupdate", () => {
@@ -32,6 +43,11 @@ export default function VoicePlayer({ src, duration = 0, isUser = false }: Voice
       setCurrentTime(0);
     });
 
+    audio.addEventListener("error", () => {
+      console.error("[VoicePlayer] audio load error:", src);
+      setLoadError(true);
+    });
+
     return () => {
       audio.pause();
       audio.src = "";
@@ -40,7 +56,7 @@ export default function VoicePlayer({ src, duration = 0, isUser = false }: Voice
 
   const toggle = () => {
     const audio = audioRef.current;
-    if (!audio) return;
+    if (!audio || loadError) return;
 
     if (playing) {
       audio.pause();
@@ -54,6 +70,7 @@ export default function VoicePlayer({ src, duration = 0, isUser = false }: Voice
   };
 
   const formatTime = (sec: number) => {
+    if (!isFinite(sec) || isNaN(sec) || sec < 0) return "0:00";
     const m = Math.floor(sec / 60);
     const s = Math.floor(sec % 60);
     return `${m}:${s.toString().padStart(2, "0")}`;
@@ -70,11 +87,14 @@ export default function VoicePlayer({ src, duration = 0, isUser = false }: Voice
     >
       <button
         onClick={toggle}
+        disabled={loadError}
         className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full ${
           isUser ? "bg-white/20" : "bg-white/60"
-        }`}
+        } ${loadError ? "opacity-50" : ""}`}
       >
-        {playing ? (
+        {loadError ? (
+          <span className="text-[10px]">!</span>
+        ) : playing ? (
           <Pause size={14} className={isUser ? "text-white" : "text-foreground"} />
         ) : (
           <Play size={14} className={isUser ? "text-white" : "text-foreground"} />
@@ -91,7 +111,7 @@ export default function VoicePlayer({ src, duration = 0, isUser = false }: Voice
         </div>
         {/* Time */}
         <span className={`text-[10px] ${isUser ? "text-white/80" : "text-foreground-muted"}`}>
-          {playing ? formatTime(currentTime) : formatTime(audioDuration)}
+          {loadError ? "无法播放" : formatTime(audioDuration)}
         </span>
       </div>
     </div>

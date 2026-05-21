@@ -22,8 +22,9 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await audioFile.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // 获取音频时长（简单估算：webm/opus 约 16kbps）
-    const duration = Math.max(1, Math.round(buffer.length / 2000));
+    // 优先使用前端传来的真实时长，否则兜底估算
+    const durationStr = formData.get("duration") as string | null;
+    const duration = durationStr ? Number(durationStr) : Math.max(1, Math.round(buffer.length / 2000));
 
     // 生成唯一 key 并上传
     const ext = audioFile.name.endsWith(".webm") ? "webm" : "mp3";

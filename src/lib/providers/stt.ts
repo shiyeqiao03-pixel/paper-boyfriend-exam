@@ -38,14 +38,14 @@ function buildFrame(messageType: number, flags: number, serialMethod: number, co
 }
 
 // 解析响应帧
-function parseFrame(data: Buffer): { text?: string; error?: string; isFinal?: boolean } {
+function parseFrame(data: Buffer): { text?: string; error?: string } {
   if (data.length < 8) return {};
 
   const flags = data.readUInt8(1) & 0x0F;
   const compressionType = data.readUInt8(2) & 0x0F;
   const hasSequence = (flags & 0x01) === 1;
 
-  let payloadStart = hasSequence ? 12 : 8;
+  const payloadStart = hasSequence ? 12 : 8;
   if (data.length < payloadStart + 4) return {};
 
   const payloadLen = data.readUInt32BE(hasSequence ? 8 : 4);
@@ -72,7 +72,7 @@ function parseFrame(data: Buffer): { text?: string; error?: string; isFinal?: bo
       || json.text
       || ""
     ).trim();
-    return { text, isFinal: true };
+    return { text };
   } catch {
     return {};
   }
@@ -119,6 +119,9 @@ export async function transcribeVoice(audioBuffer: Buffer): Promise<string> {
     ws.on("open", () => {
       // 1. 发送配置帧
       const config = {
+        user: {
+          uid: "paper_boyfriend_user",
+        },
         audio: {
           format: "pcm",
           rate: 16000,
@@ -126,12 +129,14 @@ export async function transcribeVoice(audioBuffer: Buffer): Promise<string> {
           channel: 1,
           codec: "raw",
         },
-        header: {
-          appid: APPID,
-          uid: "paper_boyfriend_user",
+        request: {
+          model_name: "bigmodel",
         },
       };
-      const configPayload = gzip.gzipSync(JSON.stringify(config));
+      const configJson = JSON.stringify(config);
+      console.log("[STT] config:", configJson);
+      console.log("[STT] audio buffer length:", audioBuffer.length, "bytes");
+      const configPayload = gzip.gzipSync(configJson);
       const configFrame = buildFrame(
         FULL_CLIENT_REQUEST,
         NO_SEQUENCE,
@@ -143,6 +148,7 @@ export async function transcribeVoice(audioBuffer: Buffer): Promise<string> {
 
       // 2. 分片发送音频，每帧200ms（6400字节）
       const chunkSize = 6400;
+      let sentChunks = 0;
       for (let i = 0; i < audioBuffer.length; i += chunkSize) {
         const chunk = audioBuffer.slice(i, i + chunkSize);
         const audioFrame = buildFrame(
@@ -153,7 +159,9 @@ export async function transcribeVoice(audioBuffer: Buffer): Promise<string> {
           chunk
         );
         ws.send(audioFrame);
+        sentChunks++;
       }
+      console.log("[STT] sent", sentChunks, "audio chunks");
 
       // 3. 发送结束帧
       const endFrame = buildFrame(
@@ -164,11 +172,22 @@ export async function transcribeVoice(audioBuffer: Buffer): Promise<string> {
         Buffer.alloc(0)
       );
       ws.send(endFrame);
+      console.log("[STT] sent end frame");
+
+      // 4. 延迟 8 秒关闭，等服务端返回完所有结果
+      setTimeout(() => {
+        if (!isClosed) {
+          console.log("[STT] force close after 8s, result:", result);
+          close();
+        }
+      }, 8000);
     });
 
     ws.on("message", (data: Buffer) => {
       const parsed = parseFrame(data);
+      console.log("[STT] recv frame:", JSON.stringify(parsed));
       if (parsed.error) {
+        console.error("[STT] server error:", parsed.error);
         if (!isClosed) {
           isClosed = true;
           ws.close();
@@ -177,11 +196,8 @@ export async function transcribeVoice(audioBuffer: Buffer): Promise<string> {
         return;
       }
       if (parsed.text) {
-        result += parsed.text;
-        // 如果是最终结果直接返回
-        if (parsed.isFinal) {
-          close();
-        }
+        // 火山引擎流式返回完整前缀，直接覆盖
+        result = parsed.text;
       }
     });
 

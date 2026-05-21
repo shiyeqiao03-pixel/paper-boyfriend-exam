@@ -17,6 +17,7 @@ interface ChatMessage {
   status: string;
   createdAt: string;
   replyGroupId: string | null;
+  duration?: number;
 }
 
 export default function ChatPage() {
@@ -33,6 +34,7 @@ export default function ChatPage() {
   const [menuOpen, setMenuOpen] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const recordingStartTimeRef = useRef<number>(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -119,7 +121,7 @@ export default function ChatPage() {
     }
   };
 
-  const sendVoiceMessage = async (audioUrl: string, duration: number) => {
+  const sendVoiceMessage = async (audioUrl: string, duration: number, sttText?: string) => {
     if (sending) return;
     setSending(true);
 
@@ -131,6 +133,7 @@ export default function ChatPage() {
       status: "sent",
       createdAt: new Date().toISOString(),
       replyGroupId: null,
+      duration,
     };
     setMessages((prev) => [...prev, tempUserMsg]);
     setTimeout(scrollToBottom, 50);
@@ -143,6 +146,8 @@ export default function ChatPage() {
           characterId,
           messageType: "voice",
           contentText: audioUrl,
+          duration,
+          sttText,
         }),
       });
 
@@ -234,6 +239,37 @@ export default function ChatPage() {
     }
   };
 
+  async function convertWebmToPcm(webmBlob: Blob, targetSampleRate = 16000): Promise<Blob> {
+    const arrayBuffer = await webmBlob.arrayBuffer();
+    console.log("[PCM] webm size:", arrayBuffer.byteLength, "bytes");
+    const audioContext = new AudioContext();
+    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+    console.log("[PCM] decoded duration:", audioBuffer.duration, "s, sampleRate:", audioBuffer.sampleRate, "channels:", audioBuffer.numberOfChannels);
+
+    const offlineCtx = new OfflineAudioContext(
+      1,
+      Math.ceil(audioBuffer.duration * targetSampleRate),
+      targetSampleRate
+    );
+    const source = offlineCtx.createBufferSource();
+    source.buffer = audioBuffer;
+    source.connect(offlineCtx.destination);
+    source.start();
+
+    const resampledBuffer = await offlineCtx.startRendering();
+    const floatData = resampledBuffer.getChannelData(0);
+    console.log("[PCM] pcm samples:", floatData.length, "=> bytes:", floatData.length * 2);
+
+    const pcmBuffer = new ArrayBuffer(floatData.length * 2);
+    const pcmView = new DataView(pcmBuffer);
+    for (let i = 0; i < floatData.length; i++) {
+      const sample = Math.max(-1, Math.min(1, floatData[i]));
+      pcmView.setInt16(i * 2, Math.floor(sample * 32767), true);
+    }
+
+    return new Blob([pcmBuffer], { type: "audio/pcm" });
+  }
+
   const toggleRecording = async () => {
     if (recording) {
       mediaRecorderRef.current?.stop();
@@ -247,6 +283,7 @@ export default function ChatPage() {
       const mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
+      recordingStartTimeRef.current = Date.now();
 
       mediaRecorder.ondataavailable = (e) => {
         audioChunksRef.current.push(e.data);
@@ -255,17 +292,55 @@ export default function ChatPage() {
       mediaRecorder.onstop = async () => {
         stream.getTracks().forEach((track) => track.stop());
 
+        await new Promise((resolve) => setTimeout(resolve, 200));
+
         try {
           const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
 
-          // 1. 上传语音到 R2
+          if (audioBlob.size === 0) {
+            alert("录音为空，请重试");
+            setProcessingVoice(false);
+            return;
+          }
+
+          const realDuration = Math.max(1, Math.round((Date.now() - recordingStartTimeRef.current) / 1000));
+          const pcmBlob = await convertWebmToPcm(audioBlob);
+
           const uploadForm = new FormData();
           uploadForm.append("audio", audioBlob, "voice.webm");
+          uploadForm.append("duration", String(realDuration));
 
-          const uploadRes = await fetch("/api/chat/voice", {
+          // 并行：上传 R2 + STT 识别
+          const uploadPromise = fetch("/api/chat/voice", {
             method: "POST",
             body: uploadForm,
           });
+
+          const sttPromise = (async () => {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 20000);
+            try {
+              const sttForm = new FormData();
+              sttForm.append("audio", pcmBlob, "voice.pcm");
+              const sttRes = await fetch("/api/stt/transcribe", {
+                method: "POST",
+                body: sttForm,
+                signal: controller.signal,
+              });
+              const sttData = await sttRes.json();
+              return sttData.success && sttData.text ? sttData.text : "";
+            } catch (e) {
+              console.error("STT 识别失败:", e);
+              return "";
+            } finally {
+              clearTimeout(timeoutId);
+            }
+          })();
+
+          const [uploadRes, sttText] = await Promise.all([
+            uploadPromise,
+            sttPromise.catch(() => ""),
+          ]);
           const uploadData = await uploadRes.json();
 
           if (!uploadData.success || !uploadData.audioUrl) {
@@ -274,12 +349,12 @@ export default function ChatPage() {
             return;
           }
 
-          // 2. 发送语音消息
-          await sendVoiceMessage(uploadData.audioUrl, uploadData.duration);
+          // 消息即将显示，标签立刻消失，不等后端返回
+          setProcessingVoice(false);
+          await sendVoiceMessage(uploadData.audioUrl, realDuration, sttText);
         } catch (err: any) {
           console.error("发送语音失败:", err);
           alert("发送语音失败，请重试");
-        } finally {
           setProcessingVoice(false);
         }
       };
@@ -365,6 +440,7 @@ export default function ChatPage() {
                 ) : msg.messageType === "voice" ? (
                   <VoicePlayer
                     src={msg.contentText}
+                    duration={msg.duration}
                     isUser={isUser}
                   />
                 ) : (
