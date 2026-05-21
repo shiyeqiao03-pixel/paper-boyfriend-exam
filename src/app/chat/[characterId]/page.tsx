@@ -637,7 +637,7 @@ export default function ChatPage() {
             ) : (
               historyGroups.map(([date, msgs]) => (
                 <div key={date} className="mb-6">
-                  <div className="sticky top-0 mb-3 bg-background py-1">
+                  <div className="sticky top-0 z-10 bg-background py-2">
                     <span className="text-xs font-medium text-foreground-muted">{date}</span>
                   </div>
                   <div className="space-y-3">
@@ -648,6 +648,18 @@ export default function ChatPage() {
                         hour: "2-digit",
                         minute: "2-digit",
                       });
+                      const keyword = historySearch.trim().toLowerCase();
+                      const renderHighlight = (text: string) => {
+                        if (!keyword) return text;
+                        const parts = text.split(new RegExp(`(${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'));
+                        return parts.map((part, i) =>
+                          part.toLowerCase() === keyword ? (
+                            <span key={i} className="font-medium text-primary">{part}</span>
+                          ) : (
+                            part
+                          )
+                        );
+                      };
                       return (
                         <button
                           key={msg.id}
@@ -678,7 +690,7 @@ export default function ChatPage() {
                               <span className="text-[10px] text-foreground-muted">{time}</span>
                             </div>
                             <p className="mt-0.5 truncate text-sm text-foreground">
-                              {preview}
+                              {renderHighlight(preview)}
                             </p>
                           </div>
                         </button>
