@@ -10,6 +10,7 @@ export interface LLMResponse {
   affinityDelta: number;
   shouldGenerateVoice: boolean;
   shouldGenerateImage: boolean;
+  sceneDescription: string | null;
   emotionLabel: string;
   safetyLevel: "normal" | "high";
 }
@@ -28,6 +29,7 @@ function parseStructuredResponse(rawText: string): LLMResponse {
         affinityDelta: typeof parsed.affinity_delta === "number" ? parsed.affinity_delta : 0,
         shouldGenerateVoice: Boolean(parsed.should_generate_voice),
         shouldGenerateImage: Boolean(parsed.should_generate_image),
+        sceneDescription: typeof parsed.scene_description === "string" ? parsed.scene_description : null,
         emotionLabel: parsed.emotion_label || "neutral",
         safetyLevel: parsed.safety_level === "high" ? "high" : "normal",
       };
@@ -41,6 +43,7 @@ function parseStructuredResponse(rawText: string): LLMResponse {
     affinityDelta: 0,
     shouldGenerateVoice: false,
     shouldGenerateImage: false,
+    sceneDescription: null,
     emotionLabel: "neutral",
     safetyLevel: "normal",
   };

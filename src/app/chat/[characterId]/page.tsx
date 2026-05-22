@@ -42,6 +42,9 @@ export default function ChatPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const messageQueueRef = useRef<string[]>([]);
+  const queueTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -70,31 +73,70 @@ export default function ChatPage() {
           setMessages(data.messages || []);
         }
         setLoading(false);
-        setTimeout(scrollToBottom, 100);
+        requestAnimationFrame(() => {
+          messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
+        });
       })
       .catch(() => {
         setLoading(false);
       });
   }, [characterId, scrollToBottom, router]);
 
-  const handleSend = async () => {
-    if (!inputText.trim() || sending) return;
+  // 轮询：检查 generating 状态的消息，自动刷新
+  useEffect(() => {
+    const hasGenerating = messages.some((m) => m.status === "generating");
+    if (!hasGenerating) {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+      return;
+    }
 
-    const text = inputText.trim();
-    setInputText("");
+    if (pollIntervalRef.current) return; // 已经在轮询
+
+    let pollCount = 0;
+    const maxPolls = 20; // 最多轮询 20 次 × 3秒 = 60 秒
+
+    pollIntervalRef.current = setInterval(() => {
+      pollCount++;
+      if (pollCount > maxPolls) {
+        clearInterval(pollIntervalRef.current!);
+        pollIntervalRef.current = null;
+        return;
+      }
+
+      fetch(`/api/chat/messages?character_id=${characterId}`)
+        .then((res) => (res.status === 401 ? null : res.json()))
+        .then((data) => {
+          if (data?.messages) {
+            setMessages(data.messages);
+            const stillGenerating = data.messages.some((m: ChatMessage) => m.status === "generating");
+            if (!stillGenerating && pollIntervalRef.current) {
+              clearInterval(pollIntervalRef.current);
+              pollIntervalRef.current = null;
+            }
+          }
+        })
+        .catch(() => {});
+    }, 3000);
+
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+    };
+  }, [messages, characterId]);
+
+  const flushMessageQueue = useCallback(async () => {
+    if (messageQueueRef.current.length === 0) return;
+
+    const texts = [...messageQueueRef.current];
+    messageQueueRef.current = [];
     setSending(true);
 
-    const tempUserMsg: ChatMessage = {
-      id: `temp-${Date.now()}`,
-      senderType: "user",
-      messageType: "text",
-      contentText: text,
-      status: "sent",
-      createdAt: new Date().toISOString(),
-      replyGroupId: null,
-    };
-    setMessages((prev) => [...prev, tempUserMsg]);
-    setTimeout(scrollToBottom, 50);
+    const mergedText = texts.join("\n");
 
     try {
       const res = await fetch("/api/chat/send", {
@@ -103,7 +145,7 @@ export default function ChatPage() {
         body: JSON.stringify({
           characterId,
           messageType: "text",
-          contentText: text,
+          contentText: mergedText,
         }),
       });
 
@@ -111,7 +153,7 @@ export default function ChatPage() {
 
       if (data.messages) {
         setMessages((prev) => {
-          const filtered = prev.filter((m) => m.id !== tempUserMsg.id);
+          const filtered = prev.filter((m) => !m.id.startsWith("queue-"));
           return [...filtered, ...data.messages];
         });
         setTimeout(scrollToBottom, 100);
@@ -122,10 +164,43 @@ export default function ChatPage() {
       setSending(false);
       inputRef.current?.focus();
     }
+  }, [characterId]);
+
+  const handleSend = () => {
+    if (!inputText.trim()) return;
+
+    const text = inputText.trim();
+    setInputText("");
+
+    // 立即显示在 UI
+    const tempId = `queue-${Date.now()}`;
+    const tempUserMsg: ChatMessage = {
+      id: tempId,
+      senderType: "user",
+      messageType: "text",
+      contentText: text,
+      status: "sent",
+      createdAt: new Date().toISOString(),
+      replyGroupId: null,
+    };
+    setMessages((prev) => [...prev, tempUserMsg]);
+    setTimeout(scrollToBottom, 50);
+
+    // 加入队列
+    messageQueueRef.current.push(text);
+
+    // 清除之前的定时器
+    if (queueTimerRef.current) {
+      clearTimeout(queueTimerRef.current);
+    }
+
+    // 设置新的防抖定时器（1.5 秒）
+    queueTimerRef.current = setTimeout(() => {
+      flushMessageQueue();
+    }, 1500);
   };
 
   const sendVoiceMessage = async (audioUrl: string, duration: number, sttText?: string) => {
-    if (sending) return;
     setSending(true);
 
     const tempUserMsg: ChatMessage = {
@@ -171,60 +246,62 @@ export default function ChatPage() {
   };
 
   const handleSendImage = async (file: File) => {
-    if (sending) return;
     setSending(true);
 
-    try {
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        const dataUrl = e.target?.result as string;
-        if (!dataUrl) {
-          setSending(false);
-          return;
-        }
+    const reader = new FileReader();
 
-        const tempUserMsg: ChatMessage = {
-          id: `temp-${Date.now()}`,
-          senderType: "user",
-          messageType: "image",
-          contentText: dataUrl,
-          status: "sent",
-          createdAt: new Date().toISOString(),
-          replyGroupId: null,
-        };
-        setMessages((prev) => [...prev, tempUserMsg]);
-        setTimeout(scrollToBottom, 50);
-
-        try {
-          const res = await fetch("/api/chat/send", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              characterId,
-              messageType: "image",
-              contentText: dataUrl,
-            }),
-          });
-
-          const data = await res.json();
-
-          if (data.messages) {
-            setMessages((prev) => {
-              const filtered = prev.filter((m) => m.id !== tempUserMsg.id);
-              return [...filtered, ...data.messages];
-            });
-            setTimeout(scrollToBottom, 100);
-          }
-        } catch (error) {
-          console.error("发送图片失败:", error);
-        } finally {
-          setSending(false);
-        }
-      };
-      reader.readAsDataURL(file);
-    } catch {
+    reader.onerror = () => {
+      console.error("读取图片失败");
       setSending(false);
-    }
+    };
+
+    reader.onload = async (e) => {
+      const dataUrl = e.target?.result as string;
+      if (!dataUrl) {
+        setSending(false);
+        return;
+      }
+
+      const tempUserMsg: ChatMessage = {
+        id: `temp-${Date.now()}`,
+        senderType: "user",
+        messageType: "image",
+        contentText: dataUrl,
+        status: "sent",
+        createdAt: new Date().toISOString(),
+        replyGroupId: null,
+      };
+      setMessages((prev) => [...prev, tempUserMsg]);
+      setTimeout(scrollToBottom, 50);
+
+      try {
+        const res = await fetch("/api/chat/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            characterId,
+            messageType: "image",
+            contentText: dataUrl,
+          }),
+        });
+
+        const data = await res.json();
+
+        if (data.messages) {
+          setMessages((prev) => {
+            const filtered = prev.filter((m) => m.id !== tempUserMsg.id);
+            return [...filtered, ...data.messages];
+          });
+          setTimeout(scrollToBottom, 100);
+        }
+      } catch (error) {
+        console.error("发送图片失败:", error);
+      } finally {
+        setSending(false);
+      }
+    };
+
+    reader.readAsDataURL(file);
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -375,9 +452,10 @@ export default function ChatPage() {
     const showTime =
       index > 0 &&
       shouldShowTimeDivider(msg.createdAt, messages[index - 1]?.createdAt);
+    const safeKey = msg.id ? `${msg.id}-${index}` : `msg-${index}`;
 
     return (
-      <div key={msg.id}>
+      <div key={safeKey}>
         {showTime && (
           <div className="my-6 text-center text-xs text-foreground-muted">
             {formatTime(msg.createdAt)}
@@ -775,14 +853,14 @@ export default function ChatPage() {
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={recording ? "正在录音..." : processingVoice ? "语音识别中..." : "说点什么……"}
-            disabled={sending || recording || processingVoice}
+            placeholder={recording ? "正在录音..." : processingVoice ? "语音识别中..." : sending ? "对方正在输入..." : "说点什么……"}
+            disabled={recording || processingVoice}
             className="flex-1 rounded-full border border-border bg-white px-4 py-2 text-sm text-foreground outline-none transition-all focus:border-primary focus:ring-1 focus:ring-primary/20 disabled:opacity-50"
           />
 
           <button
             onClick={handleSend}
-            disabled={!inputText.trim() || sending || recording || processingVoice}
+            disabled={!inputText.trim() || recording || processingVoice}
             className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-charcoal-800 text-white transition-all hover:bg-charcoal-700 disabled:opacity-30"
           >
             <Send size={16} />
