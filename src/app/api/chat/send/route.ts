@@ -314,8 +314,8 @@ export async function POST(request: NextRequest) {
         : "[图片]";
     } else if (messageType === "text" && currentUserContent.includes("\n")) {
       // 用户连续发了多条消息，用换行分隔
-      const parts = currentUserContent.split("\n").filter((s) => s.trim());
-      currentUserContent = `[用户连续发了 ${parts.length} 条消息：\n${parts.map((p, i) => `${i + 1}. ${p}`).join("\n")}]`;
+      const parts = currentUserContent.split("\n").filter((s: string) => s.trim());
+      currentUserContent = `[用户连续发了 ${parts.length} 条消息：\n${parts.map((p: string, i: number) => `${i + 1}. ${p}`).join("\n")}]`;
     }
 
     // 在第一条用户消息前插入 system prompt，或作为第一条消息
