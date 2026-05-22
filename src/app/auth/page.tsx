@@ -212,7 +212,7 @@ export default function AuthPage() {
                 <Turnstile
                   ref={turnstileRef}
                   siteKey={siteKey}
-                  options={{ size: "normal", theme: "light" }}
+                  options={{ theme: "light" }}
                   onSuccess={(token) => setTurnstileToken(token)}
                   onError={() => {
                     setError("安全验证加载失败，请刷新页面重试");
