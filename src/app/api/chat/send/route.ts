@@ -47,10 +47,11 @@ async function getReferenceImageUrl(characterName: string): Promise<string | und
 
 function getCurrentTimeContext(): { timeText: string; timeOfDay: string } {
   const now = new Date();
-  const weekday = now.toLocaleDateString("zh-CN", { weekday: "long" });
-  const dateStr = now.toLocaleDateString("zh-CN", { month: "long", day: "numeric" });
-  const timeStr = now.toLocaleTimeString("zh-CN", { hour: "numeric", minute: "numeric" });
-  const hour = now.getHours();
+  const tzOptions = { timeZone: "Asia/Shanghai" };
+  const weekday = now.toLocaleDateString("zh-CN", { ...tzOptions, weekday: "long" });
+  const dateStr = now.toLocaleDateString("zh-CN", { ...tzOptions, month: "long", day: "numeric" });
+  const timeStr = now.toLocaleTimeString("zh-CN", { ...tzOptions, hour: "numeric", minute: "numeric" });
+  const hour = parseInt(now.toLocaleTimeString("en-US", { ...tzOptions, hour12: false, hour: "numeric" }));
   const timeOfDay =
     hour >= 5 && hour < 12 ? "早晨" :
     hour >= 12 && hour < 14 ? "中午" :
