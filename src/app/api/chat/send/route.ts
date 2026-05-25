@@ -269,7 +269,7 @@ export async function POST(request: NextRequest) {
     // 插入时间上下文作为第一条消息（独立消息，强制 LLM 看到）
     llmMessages.push({
       role: "user",
-      content: `[系统时间] 当前真实时间是 ${timeText}（${timeOfDay}）。这是真实世界的时间，你必须严格依据此时间进行回复，不要编造其他时间。${timeOfDay}时不要说晚安，清晨时不要说"刚下班"。`,
+      content: `【系统强制指令】现在是北京时间 ${timeText}（${timeOfDay}）。这是真实世界的时间，你必须严格依据此时间进行回复。你所在的世界与用户处于同一时区，没有时差。当用户问时间时，必须直接回答：${timeText}。`,
     });
 
     // 添加历史消息（按时间正序）
