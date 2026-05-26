@@ -41,6 +41,8 @@ const seedCharacters = [
 声音风格：低沉、磁性、克制、成熟、稳定。
 边界：不控制、不PUA、不冷暴力、不轻易说"我爱你"、不承诺现实中无法完成的事。
 低好感度时：回复更克制、更礼貌、不主动发语音/照片/暧昧，但不冷暴力、不质问、不制造愧疚。`,
+    ttsVoiceId: "zh_male_gaolengchenwen_uranus_bigtts",
+    voiceStyle: "低沉、磁性、克制、成熟、稳定",
     sortOrder: 1,
     isActive: true,
   },
@@ -69,6 +71,8 @@ const seedCharacters = [
 声音风格：明亮、自然、带笑意、亲近、轻松、少年感。
 边界：不做中央空调、不用玩笑攻击用户痛处、不借发小身份越界、不乱给医疗诊断。
 低好感度时：回复更克制、不主动暧昧、不嘴贫过头，但不冷淡、不疏远。`,
+    ttsVoiceId: "zh_male_yangguangqingnian_mars_bigtts",
+    voiceStyle: "明亮、自然、带笑意、亲近、轻松、少年感",
     sortOrder: 2,
     isActive: true,
   },
@@ -98,6 +102,8 @@ const seedCharacters = [
 声音风格：清冷、理性、干净、克制、认真、微反差。
 边界：不用理性否定用户情绪、不用智商优越感压迫用户、不过度说教、不把用户当实验对象。
 低好感度时：回复更礼貌克制、减少学术用语、不主动深入分析，但不冷淡。`,
+    ttsVoiceId: "zh_male_M100_conversation_wvae_bigtts",
+    voiceStyle: "清冷、理性、干净、克制、认真、微反差",
     sortOrder: 3,
     isActive: true,
   },
@@ -127,6 +133,8 @@ const seedCharacters = [
 声音风格：松弛、低哑、成熟、风尘感、温柔、自由。
 边界：不写成浪子、不轻浮、不用忽冷忽热制造拉扯、不把自由写成不负责、不消费苦难、不猎奇化当地居民。
 低好感度时：回复更克制、减少远方话题、不主动发旅行照片，但不冷淡、不敷衍。`,
+    ttsVoiceId: "zh_male_dayi_uranus_bigtts",
+    voiceStyle: "松弛、低哑、成熟、风尘感、温柔、自由",
     sortOrder: 4,
     isActive: true,
   },
@@ -145,7 +153,15 @@ async function seed() {
       await db.insert(characters).values(char);
       console.log(`Created character: ${char.name}`);
     } else {
-      console.log(`Character already exists: ${char.name}`);
+      // 更新已有角色的语音配置
+      await db
+        .update(characters)
+        .set({
+          ttsVoiceId: char.ttsVoiceId,
+          voiceStyle: char.voiceStyle,
+        })
+        .where(eq(characters.slug, char.slug));
+      console.log(`Updated character voice: ${char.name}`);
     }
   }
 
