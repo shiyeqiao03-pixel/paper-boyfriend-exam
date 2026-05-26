@@ -1,11 +1,7 @@
 // TTS Provider: 火山引擎 SeedTTS
-// 支持多音色，通过 voiceId 参数切换
-// 注意：1.0和2.0音色混用时，需根据音色ID后缀选择不同接口和Resource-Id
-// 1.0音色: V1接口(api/v1/tts)，不加Resource-Id头
-// 2.0音色: V3接口(api/v3/tts)，Resource-Id: seed-tts-2.0
+// 统一用 V1 接口，通过 Resource-Id 头区分 1.0/2.0 版本
 
-const BASE_URL_V1 = "https://openspeech.bytedance.com/api/v1/tts";
-const BASE_URL_V3 = "https://openspeech.bytedance.com/api/v3/tts";
+const BASE_URL = "https://openspeech.bytedance.com/api/v1/tts";
 const APPID = process.env.TTS_APPID;
 const TOKEN = process.env.TTS_TOKEN;
 const CLUSTER = process.env.TTS_CLUSTER || "volcano_tts";
@@ -19,25 +15,31 @@ interface TTSResponse {
 }
 
 /**
- * 根据音色ID判断版本
- * 1.0: _mars_bigtts, _wvae_bigtts 等
- * 2.0: _uranus_bigtts 等
+ * 根据音色ID判断版本，返回对应的 Resource-Id
  */
-function isVersion1(voiceId: string): boolean {
-  return voiceId.includes("_mars_bigtts") || voiceId.includes("_wvae_bigtts");
+function getResourceId(voiceId: string): string {
+  // 1.0版本音色特征
+  if (voiceId.includes("_mars_bigtts") || voiceId.includes("_wvae_bigtts")) {
+    return "seed-tts-1.0";
+  }
+  // 2.0版本音色特征
+  return "seed-tts-2.0";
 }
 
 /**
- * 过滤掉语音中的场景描述/动作描写
+ * 过滤掉语音中的场景描述/动作描写/标签
  * 只保留角色直接说的话
  */
-function filterSceneDescription(text: string): string {
+function cleanVoiceText(text: string): string {
   return text
+    // 去掉 [语音] 等标签前缀
+    .replace(/^\[.*?\]\s*/g, "")
     // 去掉所有括号内的内容（动作描写、场景描述）
     .replace(/[（(].*?[）)]/g, "")
     // 去掉书名号内容（如《低等动物》）
     .replace(/《.*?》/g, "")
-    // 清理多余空格
+    // 清理多余空格和特殊字符
+    .replace(/[\(\)\[\]\{\}*_~`]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -50,12 +52,10 @@ export async function generateVoice(
     throw new Error("TTS credentials not configured (TTS_APPID / TTS_TOKEN)");
   }
 
-  const isV1 = isVersion1(voiceId);
-  const baseUrl = isV1 ? BASE_URL_V1 : BASE_URL_V3;
-  const resourceId = isV1 ? undefined : "seed-tts-2.0";
-  const cleanedText = cleanTextForSpeech(filterSceneDescription(text));
+  const resourceId = getResourceId(voiceId);
+  const cleanedText = cleanVoiceText(text);
 
-  console.log(`[TTS] voiceId=${voiceId}, version=${isV1 ? "1.0" : "2.0"}, textLen=${cleanedText.length}`);
+  console.log(`[TTS] voiceId=${voiceId}, resourceId=${resourceId}, text="${cleanedText.slice(0, 50)}..."`);
 
   const reqid = crypto.randomUUID();
 
@@ -83,17 +83,13 @@ export async function generateVoice(
     },
   };
 
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    Authorization: `Bearer;${TOKEN}`,
-  };
-  if (resourceId) {
-    headers["Resource-Id"] = resourceId;
-  }
-
-  const response = await fetch(baseUrl, {
+  const response = await fetch(BASE_URL, {
     method: "POST",
-    headers,
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer;${TOKEN}`,
+      "Resource-Id": resourceId,
+    },
     body: JSON.stringify(payload),
   });
 
@@ -105,7 +101,6 @@ export async function generateVoice(
   const result = (await response.json()) as TTSResponse;
   console.log("[TTS] response:", JSON.stringify(result).slice(0, 500));
 
-  // V3接口可能用不同code表示成功，V1接口通常是0或200
   const isSuccess = result.code === 0 || result.code === 200 || result.code === 10000 ||
     (result.message && result.message.toLowerCase().includes("success"));
   if (!isSuccess) {
