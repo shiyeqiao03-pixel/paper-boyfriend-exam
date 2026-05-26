@@ -1,6 +1,8 @@
-// TTS Provider: SeedTTS 2.0 (火山引擎)
+// TTS Provider: 火山引擎 SeedTTS
 // 支持多音色，通过 voiceId 参数切换
-// 注意：SeedTTS 2.0 必须使用 V3 接口 + Resource-Id: seed-tts-2.0
+// 注意：1.0和2.0音色混用时，需根据音色ID后缀动态选择 Resource-Id
+// 1.0音色后缀: _mars_bigtts, _wvae_bigtts 等 → Resource-Id: seed-tts-1.0
+// 2.0音色后缀: _uranus_bigtts 等 → Resource-Id: seed-tts-2.0
 
 const BASE_URL = process.env.TTS_BASE_URL || "https://openspeech.bytedance.com/api/v3/tts";
 const APPID = process.env.TTS_APPID;
@@ -15,6 +17,20 @@ interface TTSResponse {
   data?: string;
 }
 
+/**
+ * 根据音色ID判断版本，返回对应的 Resource-Id
+ * 1.0: _mars_bigtts, _wvae_bigtts 等
+ * 2.0: _uranus_bigtts 等
+ */
+function getResourceId(voiceId: string): string {
+  // 1.0版本音色特征
+  if (voiceId.includes("_mars_bigtts") || voiceId.includes("_wvae_bigtts")) {
+    return "seed-tts-1.0";
+  }
+  // 2.0版本音色特征（默认）
+  return "seed-tts-2.0";
+}
+
 export async function generateVoice(
   text: string,
   voiceId: string
@@ -24,6 +40,8 @@ export async function generateVoice(
   }
 
   const reqid = crypto.randomUUID();
+  const resourceId = getResourceId(voiceId);
+  console.log(`[TTS] voiceId=${voiceId}, resourceId=${resourceId}`);
 
   const payload = {
     app: {
@@ -54,7 +72,7 @@ export async function generateVoice(
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer;${TOKEN}`,
-      "Resource-Id": "seed-tts-2.0",
+      "Resource-Id": resourceId,
     },
     body: JSON.stringify(payload),
   });
