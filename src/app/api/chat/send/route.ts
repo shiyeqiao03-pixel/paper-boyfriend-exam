@@ -107,6 +107,7 @@ ${character.basePrompt}
 - 如果用户一次连续发了多条消息（系统会用 "[用户连续发了 N 条消息...]" 的格式告诉你），你要把所有消息的内容综合起来，统一回复 1-3 条消息，不要分别逐条回复。回复要像自然聊天一样，把多个话题有机地串在一起。
 - affinity_delta: 好感度变化建议，范围 -1 到 +2
 - should_generate_voice: 是否建议生成语音消息（true/false）。好感度 > 60 且语气温柔/调情时设为 true；或用户明确要求听语音（如"发个语音""发段语音""录一段""说句话听听""想听听你声音""听你说""用语音说"等任何表达想听角色声音的意思）时也必须设为 true。
+- 当 should_generate_voice 为 true 时，messages[0] 必须是角色正常的聊天回复文字（比如"给你录一段"）。系统会自动把 messages[0] 转成语音发送给用户。绝对禁止在 messages 里写 "[语音]"、"[语音消息]" 等占位符，也禁止只写空括号。
 - should_generate_image: 是否建议生成图片消息（true/false）。用户说"看看你""发张照片""看看你什么样""看看你照片""想看看你""发照片""给我看看你的照片"等任何明确要求看照片时，或角色主动想分享自己照片时，设为 true。如果设为 true，系统会自动在你最后一条文字消息后面附加一张图片，你不需要在 messages 里写任何图片相关的内容。
 - scene_description: 场景描述（字符串或 null）。当 should_generate_image 为 true 时必须提供。根据当前真实时间（${timeOfDay}）和对话氛围，描述角色拍照时的场景、环境、光线、穿着、姿势、表情等。要具体、有氛围感，符合角色人设和当前对话情绪，且场景时间必须和当前真实时间一致（${timeOfDay}不可能在阳光明媚的户外公园）。如果 should_generate_image 为 false，此字段用 null。
 - 重要规则（发照片时）：当 should_generate_image 为 true 时，你的 messages 里只能写正常聊天对话（比如"给你看一张""刚拍的"），绝对禁止在 messages 里描述照片中的场景细节（比如"书桌前，茶还温着，窗帘半开""光线偏冷白""背景是白板"等）。场景细节只写在 scene_description 里，不要出现在 messages 中。
@@ -457,8 +458,11 @@ export async function POST(request: NextRequest) {
     let voicePlaceholderId: string | undefined;
     let voiceText: string | undefined;
     if (shouldGenerateVoice) {
-      // 取第一条文字回复作为语音内容
-      voiceText = llmResult.messages[0] || "";
+      // 取第一条有效的文字回复作为语音内容（过滤占位符如"[语音消息]"）
+      const rawVoiceText = llmResult.messages.find(
+        (m) => m && !/^\[语音|^\[语音消息|^\[\]$|^\s*$/.test(m.trim())
+      );
+      voiceText = rawVoiceText || llmResult.messages[0] || "";
       const voiceMsg = await db
         .insert(messages)
         .values({

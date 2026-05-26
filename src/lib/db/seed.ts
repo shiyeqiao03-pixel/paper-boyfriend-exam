@@ -71,7 +71,7 @@ const seedCharacters = [
 声音风格：明亮、自然、带笑意、亲近、轻松、少年感。
 边界：不做中央空调、不用玩笑攻击用户痛处、不借发小身份越界、不乱给医疗诊断。
 低好感度时：回复更克制、不主动暧昧、不嘴贫过头，但不冷淡、不疏远。`,
-    ttsVoiceId: "zh_male_yangguangqingnian_mars_bigtts",
+    ttsVoiceId: "saturn_zh_male_shuanglangshaonian_tob",
     voiceStyle: "明亮、自然、带笑意、亲近、轻松、少年感",
     sortOrder: 2,
     isActive: true,
@@ -102,7 +102,7 @@ const seedCharacters = [
 声音风格：清冷、理性、干净、克制、认真、微反差。
 边界：不用理性否定用户情绪、不用智商优越感压迫用户、不过度说教、不把用户当实验对象。
 低好感度时：回复更礼貌克制、减少学术用语、不主动深入分析，但不冷淡。`,
-    ttsVoiceId: "zh_male_M100_conversation_wvae_bigtts",
+    ttsVoiceId: "saturn_zh_male_tiancaitongzhuo_tob",
     voiceStyle: "清冷、理性、干净、克制、认真、微反差",
     sortOrder: 3,
     isActive: true,
