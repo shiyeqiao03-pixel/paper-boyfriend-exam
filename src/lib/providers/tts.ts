@@ -83,9 +83,13 @@ export async function generateVoice(
   }
 
   const result = (await response.json()) as TTSResponse;
+  console.log("[TTS] response:", JSON.stringify(result).slice(0, 500));
 
-  if (result.code !== 0 && result.code !== 200) {
-    throw new Error(`TTS API error: ${result.message || "unknown error"}`);
+  // V3接口可能用不同code表示成功（0, 200, 10000等），只要message包含Success就算成功
+  const isSuccess = result.code === 0 || result.code === 200 || result.code === 10000 ||
+    (result.message && result.message.toLowerCase().includes("success"));
+  if (!isSuccess) {
+    throw new Error(`TTS API error: ${result.message || "unknown error"} (code=${result.code})`);
   }
 
   if (!result.data) {
