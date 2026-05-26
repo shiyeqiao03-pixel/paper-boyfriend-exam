@@ -389,9 +389,19 @@ export async function POST(request: NextRequest) {
     // 9. 生成 reply_group_id
     const replyGroupId = crypto.randomUUID();
 
+    // 判断是否需要生成语音/图片（提前判断，避免文字和语音重复）
+    const userWantsPhoto = /发照片|看看你|看看你的|想看看你|给我看看|看照片|发张图|发图片|再发|重发/i.test(currentUserContent);
+    const userWantsVoice = /发语音|发段语音|发声音|录一段|录个音|语音说|用语音|听你说|听你声音|想听听你|想听你|听听声音|听声音|说句话听听|说句话来听听|说话听听|说说话/i.test(currentUserContent);
+    const shouldGenerateImage = llmResult.shouldGenerateImage || userWantsPhoto;
+    const shouldGenerateVoice = llmResult.shouldGenerateVoice || userWantsVoice;
+
     // 10. 保存男友文字回复
+    // 如果会生成语音，跳过 messages[0]（它会被合成语音，避免文字和语音重复）
     const newMessages = [];
-    for (const rawText of llmResult.messages.slice(0, 3)) {
+    const textMessages = shouldGenerateVoice
+      ? llmResult.messages.slice(1, 3)  // 跳过第一条（它变成语音）
+      : llmResult.messages.slice(0, 3); // 正常保存所有文字
+    for (const rawText of textMessages) {
       const cleanText = sanitizeMessage(rawText);
       if (!cleanText) continue;
       const reply = await db
@@ -436,8 +446,6 @@ export async function POST(request: NextRequest) {
       .where(eq(userCharacterRelationships.id, rel.id));
 
     // 12. 创建语音/图片占位
-    const userWantsPhoto = /发照片|看看你|看看你的|想看看你|给我看看|看照片|发张图|发图片|再发|重发/i.test(currentUserContent);
-    const userWantsVoice = /发语音|发段语音|发声音|录一段|录个音|语音说|用语音|听你说|听你声音|想听听你|想听你|听听声音|听声音|说句话听听|说句话来听听|说话听听|说说话/i.test(currentUserContent);
     console.log("[Send] LLM flags:", {
       shouldGenerateImage: llmResult.shouldGenerateImage,
       shouldGenerateVoice: llmResult.shouldGenerateVoice,
@@ -445,8 +453,6 @@ export async function POST(request: NextRequest) {
       userWantsVoice,
       messages: llmResult.messages,
     });
-    const shouldGenerateImage = llmResult.shouldGenerateImage || userWantsPhoto;
-    const shouldGenerateVoice = llmResult.shouldGenerateVoice || userWantsVoice;
 
     let voicePlaceholderId: string | undefined;
     let voiceText: string | undefined;
