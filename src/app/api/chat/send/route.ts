@@ -67,12 +67,15 @@ function buildSystemPrompt(
   character: typeof characters.$inferSelect,
   relationship: typeof userCharacterRelationships.$inferSelect | null,
   userProfile: typeof userProfiles.$inferSelect | null,
-  timeOfDay: string
+  timeOfDay: string,
+  timeText: string
 ): string {
   const stage = relationship?.relationshipStage || "初识";
   const affinity = relationship?.affinityScore || 40;
 
   return `你是${character.name}，${character.occupation}。
+
+当前真实时间：${timeText}（${timeOfDay}）。这是你和用户所在的实际时间，没有时差。你在回复时必须基于这个真实时间，不能编造或推测时间。当用户问及时间、约定见面时间、提及日程安排时，必须以当前真实时间${timeText}为准。
 
 ${character.basePrompt}
 
@@ -266,15 +269,9 @@ export async function POST(request: NextRequest) {
     // 6. 构建 LLM 消息
     // 注：evolink.ai 不支持 system 角色，用 user 角色发送人设
     const { timeText, timeOfDay } = getCurrentTimeContext();
-    const systemPrompt = buildSystemPrompt(character[0], relationship[0], userProfile[0] || null, timeOfDay);
+    const systemPrompt = buildSystemPrompt(character[0], relationship[0], userProfile[0] || null, timeOfDay, timeText);
 
     const llmMessages: LLMMessage[] = [];
-
-    // 插入时间上下文作为第一条消息（独立消息，强制 LLM 看到）
-    llmMessages.push({
-      role: "user",
-      content: `【系统强制指令】现在是北京时间 ${timeText}（${timeOfDay}）。这是真实世界的时间，你必须严格依据此时间进行回复。你所在的世界与用户处于同一时区，没有时差。当用户问时间时，必须直接回答：${timeText}。`,
-    });
 
     // 添加历史消息（按时间正序）
     const sortedHistory = [...history].sort(
@@ -325,8 +322,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 在第一条用户消息前插入 system prompt，或作为第一条消息
-    // 注意：llmMessages[0] 已经是时间上下文消息，所以这里要找第一条 "实际" 的用户/历史消息
-    const firstRealMsgIdx = llmMessages.findIndex((m, idx) => idx > 0 && m.role === "user");
+    const firstRealMsgIdx = llmMessages.findIndex((m) => m.role === "user");
     if (firstRealMsgIdx >= 0) {
       llmMessages[firstRealMsgIdx].content = `[系统设定]\n${systemPrompt}\n\n[用户消息]\n${llmMessages[firstRealMsgIdx].content}`;
     } else {
