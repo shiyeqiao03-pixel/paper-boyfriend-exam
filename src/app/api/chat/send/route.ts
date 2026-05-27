@@ -300,7 +300,8 @@ export async function POST(request: NextRequest) {
         if (msg.messageType === "image") {
           charContent = "[图片]";
         } else if (msg.messageType === "voice") {
-          charContent = "[语音消息]";
+          // 显示语音的实际文字内容，避免LLM学到"[语音消息]"占位符模式
+          charContent = msg.contentText || "[语音消息]";
         }
         llmMessages.push({
           role: "assistant",
@@ -495,6 +496,7 @@ export async function POST(request: NextRequest) {
             characterId,
             senderType: "character",
             messageType: "voice",
+            contentText: voiceText, // 保存语音文字内容
             status: "generating",
             replyGroupId,
           })
