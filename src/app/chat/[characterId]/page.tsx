@@ -251,7 +251,7 @@ export default function ChatPage() {
    */
   const compressImage = async (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
-      const img = new Image(0, 0);
+      const img = document.createElement("img");
       const reader = new FileReader();
 
       reader.onload = (e) => {
