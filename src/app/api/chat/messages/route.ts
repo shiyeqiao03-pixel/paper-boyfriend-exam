@@ -44,7 +44,23 @@ export async function GET(request: NextRequest) {
       .where(and(...conditions))
       .orderBy(messages.createdAt);
 
-    return NextResponse.json({ messages: allMessages });
+    // 确保字段名是驼峰格式，兼容前端
+    const normalizedMessages = allMessages.map((msg) => ({
+      id: msg.id,
+      userId: msg.userId,
+      characterId: msg.characterId,
+      senderType: msg.senderType,
+      messageType: msg.messageType,
+      contentText: msg.contentText,
+      sttText: msg.sttText,
+      imageDescription: msg.imageDescription,
+      status: msg.status,
+      createdAt: msg.createdAt,
+      replyGroupId: msg.replyGroupId,
+      duration: msg.duration,
+    }));
+
+    return NextResponse.json({ messages: normalizedMessages });
   } catch (error) {
     console.error("Messages API error:", error);
     return NextResponse.json(
