@@ -245,22 +245,56 @@ export default function ChatPage() {
     }
   };
 
+  /**
+   * 压缩图片，确保 base64 不超过 Vercel 4MB 限制
+   * 限制最大宽度 1280px，质量 0.8
+   */
+  const compressImage = async (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const reader = new FileReader();
+
+      reader.onload = (e) => {
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = reject;
+
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        let { width, height } = img;
+
+        // 限制最大宽度
+        const MAX_WIDTH = 1280;
+        if (width > MAX_WIDTH) {
+          height = Math.round((height * MAX_WIDTH) / width);
+          width = MAX_WIDTH;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          reject(new Error("Canvas context not available"));
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // 压缩质量 0.8，格式 JPEG
+        const compressedDataUrl = canvas.toDataURL("image/jpeg", 0.8);
+        resolve(compressedDataUrl);
+      };
+      img.onerror = reject;
+
+      reader.readAsDataURL(file);
+    });
+  };
+
   const handleSendImage = async (file: File) => {
     setSending(true);
 
-    const reader = new FileReader();
-
-    reader.onerror = () => {
-      console.error("读取图片失败");
-      setSending(false);
-    };
-
-    reader.onload = async (e) => {
-      const dataUrl = e.target?.result as string;
-      if (!dataUrl) {
-        setSending(false);
-        return;
-      }
+    try {
+      // 先压缩图片
+      const dataUrl = await compressImage(file);
 
       const tempUserMsg: ChatMessage = {
         id: `temp-${Date.now()}`,
@@ -274,34 +308,31 @@ export default function ChatPage() {
       setMessages((prev) => [...prev, tempUserMsg]);
       setTimeout(scrollToBottom, 50);
 
-      try {
-        const res = await fetch("/api/chat/send", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            characterId,
-            messageType: "image",
-            contentText: dataUrl,
-          }),
+      const res = await fetch("/api/chat/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          characterId,
+          messageType: "image",
+          contentText: dataUrl,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data.messages) {
+        setMessages((prev) => {
+          const filtered = prev.filter((m) => m.id !== tempUserMsg.id);
+          return [...filtered, ...data.messages];
         });
-
-        const data = await res.json();
-
-        if (data.messages) {
-          setMessages((prev) => {
-            const filtered = prev.filter((m) => m.id !== tempUserMsg.id);
-            return [...filtered, ...data.messages];
-          });
-          setTimeout(scrollToBottom, 100);
-        }
-      } catch (error) {
-        console.error("发送图片失败:", error);
-      } finally {
-        setSending(false);
+        setTimeout(scrollToBottom, 100);
       }
-    };
-
-    reader.readAsDataURL(file);
+    } catch (error) {
+      console.error("发送图片失败:", error);
+      alert("图片发送失败，请重试");
+    } finally {
+      setSending(false);
+    }
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {

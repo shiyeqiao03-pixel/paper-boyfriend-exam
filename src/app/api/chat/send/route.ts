@@ -300,8 +300,8 @@ export async function POST(request: NextRequest) {
         if (msg.messageType === "image") {
           charContent = "[图片]";
         } else if (msg.messageType === "voice") {
-          // 显示语音的实际文字内容，避免LLM学到"[语音消息]"占位符模式
-          charContent = msg.contentText || "[语音消息]";
+          // 优先用 sttText（语音文字），避免把 base64 传给 LLM
+          charContent = msg.sttText || "[语音消息]";
         }
         llmMessages.push({
           role: "assistant",
@@ -496,7 +496,8 @@ export async function POST(request: NextRequest) {
             characterId,
             senderType: "character",
             messageType: "voice",
-            contentText: voiceText, // 保存语音文字内容
+            contentText: null,      // after() 会填入 base64
+            sttText: voiceText,     // 保存语音文字，供历史消息使用
             status: "generating",
             replyGroupId,
           })
@@ -539,7 +540,8 @@ export async function POST(request: NextRequest) {
             await db
               .update(messages)
               .set({
-                contentText: base64Url,
+                contentText: base64Url, // base64 音频给前端播放
+                // sttText 保留原始语音文字，不覆盖
                 status: "sent",
               })
               .where(eq(messages.id, voicePlaceholderId));
