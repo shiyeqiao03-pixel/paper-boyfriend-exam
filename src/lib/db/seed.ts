@@ -102,7 +102,7 @@ const seedCharacters = [
 声音风格：清冷、理性、干净、克制、认真、微反差。
 边界：不用理性否定用户情绪、不用智商优越感压迫用户、不过度说教、不把用户当实验对象。
 低好感度时：回复更礼貌克制、减少学术用语、不主动深入分析，但不冷淡。`,
-    ttsVoiceId: "zh_female_xiaohe_uranus_bigtts",
+    ttsVoiceId: "zh_male_m191_uranus_bigtts",
     voiceStyle: "清冷、理性、干净、克制、认真、微反差",
     sortOrder: 3,
     isActive: true,
